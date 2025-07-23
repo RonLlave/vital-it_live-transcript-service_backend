@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  live-transcript-service:
+    build: .
+    container_name: live-transcript-service
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - ./logs:/app/logs
+    labels:
+      - "coolify.managed=true"
+      - "coolify.type=application"
+      - "coolify.name=live-transcript-service"
+      - "coolify.autodeploy=true"
+    networks:
+      - transcript-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  transcript-network:
+    driver: bridge

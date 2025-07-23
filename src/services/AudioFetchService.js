@@ -1,0 +1,262 @@
+const axios = require('axios');
+const Logger = require('../utils/Logger');
+const AudioProcessor = require('../utils/AudioProcessor');
+const BotPoolMonitor = require('./BotPoolMonitor');
+const { ExternalAPIError, withRetry } = require('../utils/ErrorHandler');
+
+class AudioFetchService {
+  constructor() {
+    this.apiUrl = process.env.MEETING_BOT_API_URL;
+    this.apiKey = process.env.MEETING_BOT_API_KEY;
+    this.bufferSize = parseInt(process.env.AUDIO_BUFFER_SIZE) || 30;
+    this.isRunning = false;
+    this.audioBuffers = new Map(); // botId -> { buffer, lastFetchTime, fingerprint }
+    this.fetchPromises = new Map(); // botId -> Promise (to prevent duplicate fetches)
+    this.axios = null;
+  }
+
+  /**
+   * Initialize the service
+   */
+  async initialize() {
+    this.axios = axios.create({
+      baseURL: this.apiUrl,
+      timeout: 30000, // 30 seconds for audio downloads
+      headers: {
+        ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` })
+      },
+      responseType: 'arraybuffer' // For binary audio data
+    });
+
+    // Subscribe to bot pool updates
+    this.unsubscribe = BotPoolMonitor.subscribe(this.handleBotPoolUpdate.bind(this));
+    
+    this.isRunning = true;
+    Logger.info('AudioFetchService initialized');
+  }
+
+  /**
+   * Stop the service
+   */
+  stop() {
+    this.isRunning = false;
+    if (this.unsubscribe) {
+      this.unsubscribe();
+    }
+    this.audioBuffers.clear();
+    this.fetchPromises.clear();
+    Logger.info('AudioFetchService stopped');
+  }
+
+  /**
+   * Handle bot pool updates
+   * @param {Object} update - Bot pool update
+   */
+  async handleBotPoolUpdate(update) {
+    if (!this.isRunning) return;
+
+    if (update.type === 'update' || update.type === 'initial') {
+      // Fetch audio for all active bots
+      const fetchPromises = update.activeBots.map(bot => 
+        this.fetchAudioForBot(bot).catch(error => {
+          Logger.error(`Failed to fetch audio for bot ${bot.botId}:`, error);
+        })
+      );
+
+      await Promise.allSettled(fetchPromises);
+
+      // Clean up removed bots
+      if (update.removedBots) {
+        update.removedBots.forEach(legacyBotId => {
+          this.audioBuffers.delete(legacyBotId);
+          this.fetchPromises.delete(legacyBotId);
+        });
+      }
+    }
+  }
+
+  /**
+   * Fetch audio for a specific bot
+   * @param {Object} bot - Bot object
+   * @returns {Promise<Object>} Audio data
+   */
+  async fetchAudioForBot(bot) {
+    const { legacyBotId, botId } = bot;
+
+    // Check if fetch is already in progress
+    if (this.fetchPromises.has(legacyBotId)) {
+      return this.fetchPromises.get(legacyBotId);
+    }
+
+    // Create fetch promise
+    const fetchPromise = this._performAudioFetch(bot);
+    this.fetchPromises.set(legacyBotId, fetchPromise);
+
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      this.fetchPromises.delete(legacyBotId);
+    }
+  }
+
+  /**
+   * Perform the actual audio fetch
+   * @param {Object} bot - Bot object
+   * @returns {Promise<Object>} Audio data
+   */
+  async _performAudioFetch(bot) {
+    const { legacyBotId, botId, meetingUrl } = bot;
+    const startTime = Date.now();
+
+    try {
+      const audioBuffer = await withRetry(async () => {
+        const response = await this.axios.get(
+          `/api/google-meet-guest/audio-blob/${legacyBotId}`
+        );
+        return Buffer.from(response.data);
+      }, {
+        maxRetries: 2,
+        delay: 1000
+      });
+
+      const duration = Date.now() - startTime;
+      Logger.apiRequest('GET', `/audio-blob/${legacyBotId}`, 200, duration);
+
+      // Check if audio has content
+      const hasContent = await AudioProcessor.hasAudioContent(audioBuffer);
+      if (!hasContent) {
+        Logger.debug(`No audio content for bot ${botId}`);
+        return null;
+      }
+
+      // Calculate fingerprint for deduplication
+      const fingerprint = AudioProcessor.calculateAudioFingerprint(audioBuffer);
+      
+      // Check if this is new audio
+      const existingBuffer = this.audioBuffers.get(legacyBotId);
+      if (existingBuffer && existingBuffer.fingerprint === fingerprint) {
+        Logger.debug(`Audio unchanged for bot ${botId}`);
+        return null;
+      }
+
+      // Process new audio
+      const metadata = await AudioProcessor.getAudioMetadata(audioBuffer);
+      
+      // Determine if this is incremental audio
+      const isIncremental = existingBuffer && 
+        metadata.duration > existingBuffer.metadata.duration;
+
+      let incrementalBuffer = audioBuffer;
+      if (isIncremental && existingBuffer) {
+        // Extract only the new portion
+        const startTime = existingBuffer.metadata.duration;
+        incrementalBuffer = await AudioProcessor.extractAudioSegment(
+          audioBuffer, 
+          startTime, 
+          metadata.duration
+        );
+      }
+
+      // Store the audio buffer
+      this.audioBuffers.set(legacyBotId, {
+        buffer: audioBuffer,
+        incrementalBuffer: isIncremental ? incrementalBuffer : audioBuffer,
+        lastFetchTime: new Date(),
+        fingerprint,
+        metadata,
+        botId,
+        meetingUrl
+      });
+
+      Logger.info(`Fetched audio for bot ${botId}`, {
+        size: audioBuffer.length,
+        duration: metadata.duration,
+        isIncremental,
+        incrementalDuration: isIncremental ? 
+          metadata.duration - existingBuffer.metadata.duration : 
+          metadata.duration
+      });
+
+      return {
+        botId,
+        legacyBotId,
+        meetingUrl,
+        audioBuffer: incrementalBuffer,
+        fullBuffer: audioBuffer,
+        metadata,
+        isIncremental,
+        timestamp: new Date()
+      };
+
+    } catch (error) {
+      if (error.response?.status === 404) {
+        Logger.warn(`Audio not found for bot ${botId}`);
+        return null;
+      }
+      
+      throw new ExternalAPIError(
+        'Meeting Bot API',
+        `Failed to fetch audio: ${error.message}`,
+        error.response?.status
+      );
+    }
+  }
+
+  /**
+   * Get audio buffer for a bot
+   * @param {string} legacyBotId - Legacy bot ID
+   * @returns {Object|null} Audio buffer data
+   */
+  getAudioBuffer(legacyBotId) {
+    return this.audioBuffers.get(legacyBotId) || null;
+  }
+
+  /**
+   * Get all active audio buffers
+   * @returns {Array} Array of audio buffer data
+   */
+  getAllAudioBuffers() {
+    return Array.from(this.audioBuffers.values());
+  }
+
+  /**
+   * Get service status
+   * @returns {Object} Service status
+   */
+  getStatus() {
+    return {
+      isRunning: this.isRunning,
+      activeBuffers: this.audioBuffers.size,
+      bufferDetails: Array.from(this.audioBuffers.entries()).map(([id, buffer]) => ({
+        legacyBotId: id,
+        botId: buffer.botId,
+        size: buffer.buffer.length,
+        duration: buffer.metadata?.duration || 0,
+        lastFetchTime: buffer.lastFetchTime
+      }))
+    };
+  }
+
+  /**
+   * Clean up old audio buffers
+   * @param {number} maxAge - Maximum age in milliseconds
+   */
+  cleanupOldBuffers(maxAge = 3600000) { // 1 hour default
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [legacyBotId, buffer] of this.audioBuffers.entries()) {
+      if (now - buffer.lastFetchTime.getTime() > maxAge) {
+        this.audioBuffers.delete(legacyBotId);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      Logger.info(`Cleaned up ${cleaned} old audio buffers`);
+    }
+  }
+}
+
+module.exports = new AudioFetchService();
