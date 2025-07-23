@@ -10,6 +10,7 @@ const { errorHandler } = require('../utils/ErrorHandler');
 const healthRoutes = require('./routes/health');
 const statusRoutes = require('./routes/status');
 const transcriptRoutes = require('./routes/transcripts');
+const testSupabaseRoutes = require('./routes/test-supabase');
 
 /**
  * Create and configure Express server
@@ -76,6 +77,9 @@ function createServer() {
   // API routes
   app.use('/api/status', statusRoutes);
   app.use('/api/transcripts', transcriptRoutes);
+  
+  // Test routes (remove in production)
+  app.use('/test-supabase', testSupabaseRoutes);
 
   // Root endpoint
   app.get('/', (req, res) => {
@@ -87,6 +91,7 @@ function createServer() {
         health: '/health',
         status: '/api/status',
         transcripts: '/api/transcripts',
+        testSupabase: '/test-supabase',
         documentation: 'See README.md'
       }
     });

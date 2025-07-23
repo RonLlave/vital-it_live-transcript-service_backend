@@ -10,6 +10,7 @@ const BotPoolMonitor = require('./services/BotPoolMonitor');
 const AudioFetchService = require('./services/AudioFetchService');
 const GeminiTranscriptionService = require('./services/GeminiTranscriptionService');
 const TranscriptStreamService = require('./services/TranscriptStreamService');
+const SupabaseClient = require('./utils/SupabaseClient');
 
 // Handle uncaught exceptions and rejections
 handleUncaughtExceptions();
@@ -29,6 +30,14 @@ async function initializeServices() {
     // Initialize Gemini API
     GeminiTranscriptionService.initialize();
     Logger.info('✓ Gemini Transcription Service initialized');
+    
+    // Initialize Supabase (optional)
+    const supabaseInitialized = SupabaseClient.initialize();
+    if (supabaseInitialized) {
+      Logger.info('✓ Supabase client initialized');
+    } else {
+      Logger.warn('⚠ Supabase client not configured or failed to initialize');
+    }
 
     // Initialize Transcript Stream Service
     await TranscriptStreamService.initialize();
