@@ -10,6 +10,7 @@ const { errorHandler } = require('../utils/ErrorHandler');
 const healthRoutes = require('./routes/health');
 const statusRoutes = require('./routes/status');
 const transcriptRoutes = require('./routes/transcripts');
+const enhancedTranscriptRoutes = require('./routes/enhanced-transcripts');
 const testSupabaseRoutes = require('./routes/test-supabase');
 
 /**
@@ -77,6 +78,7 @@ function createServer() {
   // API routes
   app.use('/api/status', statusRoutes);
   app.use('/api/transcripts', transcriptRoutes);
+  app.use('/api/enhanced-transcripts', enhancedTranscriptRoutes);
   
   // Test routes (remove in production)
   app.use('/test-supabase', testSupabaseRoutes);

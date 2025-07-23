@@ -2,6 +2,7 @@ const EventEmitter = require('events');
 const Logger = require('../utils/Logger');
 const AudioFetchService = require('./AudioFetchService');
 const GeminiTranscriptionService = require('./GeminiTranscriptionService');
+const MeetingMetadataService = require('./MeetingMetadataService');
 const { AppError } = require('../utils/ErrorHandler');
 
 class TranscriptStreamService extends EventEmitter {
@@ -130,7 +131,11 @@ class TranscriptStreamService extends EventEmitter {
         lastSpeaker: null,
         totalDuration: 0,
         speakers: []
-      }
+      },
+      metadata: null,
+      aiSummary: null,
+      lastSummaryUpdate: null,
+      summaryUpdateInterval: 60000 // Update summary every minute
     };
 
     this.transcriptSessions.set(sessionId, session);

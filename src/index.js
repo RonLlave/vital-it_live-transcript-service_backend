@@ -10,6 +10,7 @@ const BotPoolMonitor = require('./services/BotPoolMonitor');
 const AudioFetchService = require('./services/AudioFetchService');
 const GeminiTranscriptionService = require('./services/GeminiTranscriptionService');
 const TranscriptStreamService = require('./services/TranscriptStreamService');
+const MeetingMetadataService = require('./services/MeetingMetadataService');
 const SupabaseClient = require('./utils/SupabaseClient');
 
 // Handle uncaught exceptions and rejections
@@ -39,6 +40,10 @@ async function initializeServices() {
       Logger.warn('⚠ Supabase client not configured or failed to initialize');
     }
 
+    // Initialize Meeting Metadata Service
+    MeetingMetadataService.initialize();
+    Logger.info('✓ Meeting Metadata Service initialized');
+    
     // Initialize Transcript Stream Service
     await TranscriptStreamService.initialize();
     Logger.info('✓ Transcript Stream Service initialized');

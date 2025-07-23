@@ -374,6 +374,179 @@ Please maintain speaker consistency with the previous context.`;
         (this.transcriptionStats.successful / this.transcriptionStats.total) : 0
     };
   }
+
+  /**
+   * Generate AI summary from transcript
+   * @param {Object} transcript - Full transcript object
+   * @param {Object} meetingInfo - Meeting information (participants, duration, etc.)
+   * @returns {Promise<Object>} AI-generated summary
+   */
+  async generateSummary(transcript, meetingInfo = {}) {
+    if (!this.geminiModel) {
+      throw new Error('Gemini model not initialized');
+    }
+
+    const startTime = Date.now();
+
+    try {
+      // Prepare context for summary
+      const participants = meetingInfo.participants || [];
+      const meetingDuration = transcript.duration || 0;
+      const languageInfo = transcript.detectedLanguage || 'unknown';
+      
+      // Build summary prompt
+      const prompt = `
+Analyze this meeting transcript and provide a comprehensive summary.
+
+Meeting Information:
+- Duration: ${this.formatDuration(meetingDuration)}
+- Language: ${languageInfo}
+- Participants: ${participants.length > 0 ? participants.join(', ') : 'Unknown'}
+- Total Words: ${transcript.wordCount || 0}
+
+Transcript:
+${transcript.fullText || transcript.segments.map(s => `${s.speaker}: ${s.text}`).join('\n')}
+
+Provide a JSON response with the following structure:
+{
+  "summary": {
+    "brief": "A 2-3 sentence executive summary of the meeting",
+    "keyPoints": ["Array of 3-5 main discussion points"],
+    "decisions": ["Array of decisions made during the meeting"],
+    "actionItems": [
+      {
+        "task": "Description of the action item",
+        "assignee": "Person responsible (if mentioned)",
+        "deadline": "Deadline if mentioned, null otherwise"
+      }
+    ],
+    "topics": ["Array of main topics discussed"],
+    "sentiment": "Overall meeting sentiment (positive/neutral/negative)",
+    "nextSteps": ["Array of planned next steps"]
+  },
+  "insights": {
+    "participationRate": {
+      "speakerName": "percentage of speaking time"
+    },
+    "mostDiscussedTopics": ["Top 3 topics by mention frequency"],
+    "meetingType": "Type of meeting (standup/planning/review/discussion/other)",
+    "effectiveness": "Meeting effectiveness rating (high/medium/low) with brief reason"
+  }
+}
+
+IMPORTANT: Return ONLY valid JSON, no additional text or markdown.`;
+
+      // Call Gemini API
+      const result = await withRetry(async () => {
+        const response = await this.geminiModel.generateContent(prompt);
+        return response.response.text();
+      }, {
+        maxRetries: 2,
+        delay: 1000
+      });
+
+      // Parse response
+      const summary = this.parseSummaryResponse(result);
+      
+      // Add metadata
+      summary.metadata = {
+        generatedAt: new Date().toISOString(),
+        processingTime: Date.now() - startTime,
+        transcriptSegments: transcript.segments?.length || 0,
+        meetingDuration: meetingDuration
+      };
+
+      Logger.info('AI summary generated successfully', {
+        processingTime: summary.metadata.processingTime,
+        wordCount: transcript.wordCount
+      });
+
+      return summary;
+
+    } catch (error) {
+      Logger.error('Failed to generate AI summary:', error);
+      throw new ExternalAPIError(
+        'Gemini API',
+        `Summary generation failed: ${error.message}`
+      );
+    }
+  }
+
+  /**
+   * Parse summary response from Gemini
+   * @param {string} responseText - Response text from Gemini
+   * @returns {Object} Parsed summary
+   */
+  parseSummaryResponse(responseText) {
+    try {
+      // Clean response text
+      const cleanedText = responseText
+        .replace(/```json\n?/g, '')
+        .replace(/```\n?/g, '')
+        .trim();
+
+      const parsed = JSON.parse(cleanedText);
+      
+      // Ensure all required fields exist with defaults
+      return {
+        summary: {
+          brief: parsed.summary?.brief || 'Summary not available',
+          keyPoints: parsed.summary?.keyPoints || [],
+          decisions: parsed.summary?.decisions || [],
+          actionItems: parsed.summary?.actionItems || [],
+          topics: parsed.summary?.topics || [],
+          sentiment: parsed.summary?.sentiment || 'neutral',
+          nextSteps: parsed.summary?.nextSteps || []
+        },
+        insights: {
+          participationRate: parsed.insights?.participationRate || {},
+          mostDiscussedTopics: parsed.insights?.mostDiscussedTopics || [],
+          meetingType: parsed.insights?.meetingType || 'other',
+          effectiveness: parsed.insights?.effectiveness || 'medium'
+        }
+      };
+    } catch (error) {
+      Logger.error('Failed to parse summary response:', error);
+      
+      // Return default summary structure
+      return {
+        summary: {
+          brief: 'Failed to generate summary',
+          keyPoints: [],
+          decisions: [],
+          actionItems: [],
+          topics: [],
+          sentiment: 'neutral',
+          nextSteps: []
+        },
+        insights: {
+          participationRate: {},
+          mostDiscussedTopics: [],
+          meetingType: 'other',
+          effectiveness: 'unknown'
+        }
+      };
+    }
+  }
+
+  /**
+   * Format duration helper
+   * @param {number} seconds - Duration in seconds
+   * @returns {string} Formatted duration
+   */
+  formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    } else {
+      return `${secs}s`;
+    }
+  }
 }
 
 module.exports = new GeminiTranscriptionService();
