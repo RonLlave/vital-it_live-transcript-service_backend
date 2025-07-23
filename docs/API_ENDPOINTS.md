@@ -653,6 +653,106 @@ data: {"timestamp":"2025-01-23T10:45:00Z","summary":{"brief":"Updated meeting su
 
 ---
 
+## Debug Endpoints (Development Only)
+
+### GET /api/debug/bot-pool
+Check the bot pool status and active bots.
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "pool": {
+    "isMonitoring": true,
+    "activeBotCount": 1,
+    "lastPollTime": "2025-07-23T08:01:00Z",
+    "pollInterval": 5000,
+    "apiUrl": "https://meeting-bot-backend.dev.singularity-works.com"
+  },
+  "bots": [
+    {
+      "poolBotId": "bot_1",
+      "legacyBotId": "guest_bot_1753257649435_rbyt1d",
+      "status": "active",
+      "meetingUrl": "https://meet.google.com/fmf-eygo-sno",
+      "userEmail": "roncymondllave25@gmail.com",
+      "participants": {
+        "count": 1,
+        "list": ["Ron Cymond Llave"]
+      },
+      "duration": 120,
+      "durationFormatted": "00:02:00",
+      "audioBlobUrl": "/api/google-meet-guest/audio-blob/guest_bot_1753257649435_rbyt1d",
+      "fullAudioBlobUrl": "https://meeting-bot-backend.dev.singularity-works.com/api/google-meet-guest/audio-blob/guest_bot_1753257649435_rbyt1d",
+      "isNew": false,
+      "lastSeen": "2025-07-23T08:03:00Z"
+    }
+  ]
+}
+```
+
+### GET /api/debug/audio-buffers
+Check audio buffer status.
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "status": {
+    "isRunning": true,
+    "activeBuffers": 1,
+    "bufferDetails": [
+      {
+        "legacyBotId": "guest_bot_1753257649435_rbyt1d",
+        "botId": "bot_1",
+        "size": 2048000,
+        "duration": 120,
+        "lastFetchTime": "2025-07-23T08:03:00Z"
+      }
+    ]
+  }
+}
+```
+
+### GET /api/debug/transcript-sessions
+Check active transcript sessions.
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "count": 1,
+  "sessions": [
+    {
+      "sessionId": "bot_1_transcript",
+      "botId": "bot_1",
+      "legacyBotId": "guest_bot_1753257649435_rbyt1d",
+      "meetingUrl": "https://meet.google.com/fmf-eygo-sno",
+      "status": "active",
+      "segmentCount": 15,
+      "wordCount": 567,
+      "duration": 120,
+      "hasMetadata": true,
+      "hasSummary": true,
+      "eventId": null
+    }
+  ]
+}
+```
+
+### POST /api/debug/force-poll
+Force an immediate poll of the bot pool.
+
+**Response: 200 OK**
+```json
+{
+  "success": true,
+  "message": "Forced bot pool poll completed"
+}
+```
+
+---
+
 ## Test Endpoints
 
 ### GET /test-supabase

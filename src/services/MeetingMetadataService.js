@@ -48,18 +48,18 @@ class MeetingMetadataService {
       
       // Extract meeting information
       const metadata = {
-        event_id: botDetails.event_id || botDetails.eventId || botDetails.meetingId || null,
+        event_id: botDetails.event_id || botDetails.eventId || botDetails.currentMeeting?.eventId || botDetails.meetingId || null,
         meetingUrl: botDetails.meetingUrl || botDetails.meeting_url || null,
         meetingTitle: botDetails.meetingTitle || botDetails.meeting_title || 'Untitled Meeting',
         participants: await this.extractParticipants(botDetails),
-        organizer: botDetails.organizer || botDetails.meeting_organizer || null,
+        organizer: botDetails.organizer || botDetails.meeting_organizer || botDetails.userEmail || null,
         scheduledStartTime: botDetails.scheduledStartTime || botDetails.scheduled_start || null,
         scheduledEndTime: botDetails.scheduledEndTime || botDetails.scheduled_end || null,
-        actualStartTime: botDetails.joinedAt || botDetails.joined_at || null,
+        actualStartTime: botDetails.startedAt || botDetails.joinedAt || botDetails.joined_at || null,
         meetingType: botDetails.meetingType || 'scheduled',
         recordingEnabled: botDetails.recordingEnabled || false,
         botInfo: {
-          botId: botId,
+          botId: botId || botDetails.poolBotId,
           legacyBotId: legacyBotId,
           botName: botDetails.botName || botDetails.bot_name || 'Meeting Bot',
           status: botDetails.status || 'unknown'
@@ -111,7 +111,7 @@ class MeetingMetadataService {
     const endpoints = [
       `/api/google-meet-guest/bots/${botId}`,
       `/api/google-meet-guest/legacy/${legacyBotId}`,
-      `/api/google-meet-guest/pool/status?includeMetadata=true`
+      `/api/google-meet-guest/pool/active`
     ];
 
     for (const endpoint of endpoints) {
@@ -124,13 +124,12 @@ class MeetingMetadataService {
         });
 
         if (response.data) {
-          // If it's the pool status endpoint, find our bot
-          if (endpoint.includes('pool/status')) {
+          // If it's the pool active endpoint, find our bot
+          if (endpoint.includes('pool/active')) {
             const bots = response.data.bots || [];
             const bot = bots.find(b => 
-              b.botId === botId || 
-              b.legacyBotId === legacyBotId ||
-              b.legacy_bot_id === legacyBotId
+              b.poolBotId === botId ||
+              b.legacyBotId === legacyBotId
             );
             if (bot) return bot;
           } else {
@@ -156,8 +155,14 @@ class MeetingMetadataService {
 
     // Extract from various possible fields
     if (botDetails.participants) {
-      participants.push(...(Array.isArray(botDetails.participants) ? 
-        botDetails.participants : [botDetails.participants]));
+      // Handle the active endpoint format { count: X, list: [...] }
+      if (botDetails.participants.list && Array.isArray(botDetails.participants.list)) {
+        participants.push(...botDetails.participants.list);
+      } else if (Array.isArray(botDetails.participants)) {
+        participants.push(...botDetails.participants);
+      } else {
+        participants.push(botDetails.participants);
+      }
     }
 
     if (botDetails.attendees) {

@@ -134,15 +134,22 @@ class BotPoolMonitor {
    */
   async fetchActiveBots() {
     return withRetry(async () => {
-      const response = await this.axios.get('/api/google-meet-guest/pool/status', {
-        params: { includeMetadata: true }
-      });
+      const response = await this.axios.get('/api/google-meet-guest/pool/active');
 
-      if (!response.data || !response.data.bots) {
+      if (!response.data || typeof response.data.count === 'undefined') {
         throw new ExternalAPIError('Meeting Bot API', 'Invalid response format');
       }
 
-      return response.data.bots.filter(bot => bot.status === 'in_meeting');
+      const activeBots = response.data.bots || [];
+      
+      Logger.debug(`Found ${activeBots.length} active bots:`, activeBots.map(bot => ({
+        botId: bot.poolBotId,
+        legacyBotId: bot.legacyBotId,
+        status: bot.status,
+        meetingUrl: bot.meetingUrl
+      })));
+      
+      return activeBots;
     }, {
       maxRetries: 3,
       delay: 1000,
@@ -170,6 +177,7 @@ class BotPoolMonitor {
     bots.forEach(bot => {
       this.activeBots.set(bot.legacyBotId, {
         ...bot,
+        botId: bot.poolBotId,
         lastSeen: new Date(),
         isNew: newBots.includes(bot)
       });
@@ -189,7 +197,7 @@ class BotPoolMonitor {
     Logger.metric('active_bots_count', this.activeBots.size);
     if (newBots.length > 0) {
       Logger.info(`New bots joined meetings: ${newBots.length}`, {
-        botIds: newBots.map(b => b.botId)
+        botIds: newBots.map(b => b.poolBotId)
       });
     }
     if (removedBotIds.length > 0) {

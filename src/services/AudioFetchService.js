@@ -19,6 +19,10 @@ class AudioFetchService {
    * Initialize the service
    */
   async initialize() {
+    if (!this.apiUrl) {
+      throw new Error('MEETING_BOT_API_URL is not configured');
+    }
+    
     this.axios = axios.create({
       baseURL: this.apiUrl,
       timeout: 30000, // 30 seconds for audio downloads
@@ -28,11 +32,12 @@ class AudioFetchService {
       responseType: 'arraybuffer' // For binary audio data
     });
 
+    Logger.info('AudioFetchService initialized with base URL:', this.apiUrl);
+
     // Subscribe to bot pool updates
     this.unsubscribe = BotPoolMonitor.subscribe(this.handleBotPoolUpdate.bind(this));
     
     this.isRunning = true;
-    Logger.info('AudioFetchService initialized');
   }
 
   /**
@@ -57,11 +62,20 @@ class AudioFetchService {
 
     if (update.type === 'update' || update.type === 'initial') {
       // Fetch audio for all active bots
-      const fetchPromises = update.activeBots.map(bot => 
-        this.fetchAudioForBot(bot).catch(error => {
-          Logger.error(`Failed to fetch audio for bot ${bot.botId}:`, error);
-        })
-      );
+      const fetchPromises = update.activeBots.map(bot => {
+        // Log bot details for debugging
+        Logger.debug('Processing bot for audio fetch:', {
+          botId: bot.poolBotId || bot.botId,
+          legacyBotId: bot.legacyBotId,
+          status: bot.status,
+          meetingUrl: bot.meetingUrl
+        });
+        
+        return this.fetchAudioForBot(bot).catch(error => {
+          const botIdentifier = bot.poolBotId || bot.botId || bot.legacyBotId || 'unknown';
+          Logger.error(`Failed to fetch audio for bot ${botIdentifier}:`, error);
+        });
+      });
 
       await Promise.allSettled(fetchPromises);
 
@@ -81,7 +95,14 @@ class AudioFetchService {
    * @returns {Promise<Object>} Audio data
    */
   async fetchAudioForBot(bot) {
-    const { legacyBotId, botId } = bot;
+    // Handle different property naming conventions
+    const legacyBotId = bot.legacyBotId;
+    const botId = bot.poolBotId || bot.botId;
+    
+    if (!legacyBotId) {
+      Logger.error('No legacy bot ID found for audio fetch:', bot);
+      throw new Error('Missing legacy bot ID for audio fetch');
+    }
 
     // Check if fetch is already in progress
     if (this.fetchPromises.has(legacyBotId)) {
@@ -89,7 +110,11 @@ class AudioFetchService {
     }
 
     // Create fetch promise
-    const fetchPromise = this._performAudioFetch(bot);
+    const fetchPromise = this._performAudioFetch({
+      ...bot,
+      legacyBotId,
+      botId
+    });
     this.fetchPromises.set(legacyBotId, fetchPromise);
 
     try {
@@ -108,6 +133,12 @@ class AudioFetchService {
   async _performAudioFetch(bot) {
     const { legacyBotId, botId, meetingUrl } = bot;
     const startTime = Date.now();
+    
+    Logger.debug(`Fetching audio for bot:`, {
+      botId,
+      legacyBotId,
+      url: `/api/google-meet-guest/audio-blob/${legacyBotId}`
+    });
 
     try {
       const audioBuffer = await withRetry(async () => {
@@ -117,7 +148,15 @@ class AudioFetchService {
         return Buffer.from(response.data);
       }, {
         maxRetries: 2,
-        delay: 1000
+        delay: 1000,
+        shouldRetry: (error) => {
+          // Don't retry on 425 (Too Early) - audio might not be ready yet
+          if (error.response?.status === 425) {
+            Logger.debug(`Audio not ready yet for bot ${botId} (425 Too Early)`);
+            return false;
+          }
+          return error.response?.status >= 500 || error.code === 'ECONNABORTED';
+        }
       });
 
       const duration = Date.now() - startTime;
@@ -194,6 +233,20 @@ class AudioFetchService {
         Logger.warn(`Audio not found for bot ${botId}`);
         return null;
       }
+      
+      if (error.response?.status === 425) {
+        Logger.info(`Audio not ready yet for bot ${botId} (425 Too Early) - will retry on next poll`);
+        return null;
+      }
+      
+      Logger.error('Audio fetch error details:', {
+        botId,
+        legacyBotId,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        message: error.message,
+        url: error.config?.url
+      });
       
       throw new ExternalAPIError(
         'Meeting Bot API',

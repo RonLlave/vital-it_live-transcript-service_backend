@@ -82,6 +82,7 @@ function createServer() {
   
   // Test routes (remove in production)
   app.use('/test-supabase', testSupabaseRoutes);
+  app.use('/api/debug', require('./routes/debug'));
 
   // Root endpoint
   app.get('/', (req, res) => {
@@ -93,7 +94,9 @@ function createServer() {
         health: '/health',
         status: '/api/status',
         transcripts: '/api/transcripts',
+        enhancedTranscripts: '/api/enhanced-transcripts',
         testSupabase: '/test-supabase',
+        debug: '/api/debug',
         documentation: 'See README.md'
       }
     });
