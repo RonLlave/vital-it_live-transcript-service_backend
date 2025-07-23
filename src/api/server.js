@@ -90,6 +90,7 @@ function createServer() {
   app.use('/api/debug', require('./routes/debug'));
   app.use('/api/test', require('./routes/test'));
   app.use('/api/manual-test', require('./routes/manual-test'));
+  app.use('/api/force-process', require('./routes/force-process'));
 
   // Root endpoint
   app.get('/', (req, res) => {
