@@ -71,10 +71,20 @@ class AudioFetchService {
           meetingUrl: bot.meetingUrl
         });
         
-        return this.fetchAudioForBot(bot).catch(error => {
-          const botIdentifier = bot.poolBotId || bot.botId || bot.legacyBotId || 'unknown';
-          Logger.error(`Failed to fetch audio for bot ${botIdentifier}:`, error);
-        });
+        return this.fetchAudioForBot(bot)
+          .then(result => {
+            if (result && !result.audioNotReady) {
+              Logger.info(`Successfully fetched audio for bot ${bot.poolBotId || bot.botId}`, {
+                hasAudio: !!result.audioBuffer,
+                isIncremental: result.isIncremental
+              });
+            }
+            return result;
+          })
+          .catch(error => {
+            const botIdentifier = bot.poolBotId || bot.botId || bot.legacyBotId || 'unknown';
+            Logger.error(`Failed to fetch audio for bot ${botIdentifier}:`, error);
+          });
       });
 
       await Promise.allSettled(fetchPromises);
@@ -131,7 +141,8 @@ class AudioFetchService {
    * @returns {Promise<Object>} Audio data
    */
   async _performAudioFetch(bot) {
-    const { legacyBotId, botId, meetingUrl } = bot;
+    const { legacyBotId, botId } = bot;
+    const meetingUrl = bot.meetingUrl || bot.meeting_url;
     const startTime = Date.now();
     
     Logger.debug(`Fetching audio for bot:`, {
@@ -236,7 +247,19 @@ class AudioFetchService {
       
       if (error.response?.status === 425) {
         Logger.info(`Audio not ready yet for bot ${botId} (425 Too Early) - will retry on next poll`);
-        return null;
+        // Return minimal data to allow session creation
+        return {
+          botId,
+          legacyBotId,
+          meetingUrl,
+          audioBuffer: null,
+          incrementalBuffer: null,
+          fullBuffer: null,
+          metadata: null,
+          isIncremental: false,
+          timestamp: new Date(),
+          audioNotReady: true
+        };
       }
       
       Logger.error('Audio fetch error details:', {

@@ -3,6 +3,7 @@ const Logger = require('../utils/Logger');
 const AudioFetchService = require('./AudioFetchService');
 const GeminiTranscriptionService = require('./GeminiTranscriptionService');
 const MeetingMetadataService = require('./MeetingMetadataService');
+const BotPoolMonitor = require('./BotPoolMonitor');
 const { AppError } = require('../utils/ErrorHandler');
 
 class TranscriptStreamService extends EventEmitter {
@@ -24,14 +25,46 @@ class TranscriptStreamService extends EventEmitter {
    * Initialize the service
    */
   async initialize() {
-    // Subscribe to audio fetch events
-    AudioFetchService.on = this.on.bind(this); // Enable event listening
+    // Subscribe to bot pool updates to create sessions immediately
+    BotPoolMonitor.subscribe(this.handleBotPoolUpdate.bind(this));
+    
     this.isRunning = true;
     
     // Start processing loop
     this.startProcessingLoop();
     
     Logger.info('TranscriptStreamService initialized');
+  }
+
+  /**
+   * Handle bot pool updates to create sessions for new bots
+   */
+  handleBotPoolUpdate(update) {
+    if (!this.isRunning) return;
+
+    if (update.type === 'update' || update.type === 'initial') {
+      // Create sessions for all active bots
+      update.activeBots.forEach(bot => {
+        const legacyBotId = bot.legacyBotId;
+        const botId = bot.poolBotId || bot.botId;
+        const meetingUrl = bot.meetingUrl;
+        
+        if (!this.botToSessionMap.has(legacyBotId)) {
+          Logger.info(`Creating session for new bot ${botId} in meeting`);
+          this.createSession(botId, legacyBotId, meetingUrl);
+        }
+      });
+
+      // Remove sessions for bots that left
+      if (update.removedBots) {
+        update.removedBots.forEach(legacyBotId => {
+          const sessionId = this.botToSessionMap.get(legacyBotId);
+          if (sessionId) {
+            this.stopSession(sessionId);
+          }
+        });
+      }
+    }
   }
 
   /**
@@ -55,8 +88,16 @@ class TranscriptStreamService extends EventEmitter {
   async processAudioBuffers() {
     const audioBuffers = AudioFetchService.getAllAudioBuffers();
     
+    Logger.debug(`Processing ${audioBuffers.length} audio buffers`);
+    
     for (const buffer of audioBuffers) {
       try {
+        Logger.debug(`Processing audio buffer for bot ${buffer.botId}`, {
+          legacyBotId: buffer.legacyBotId,
+          hasIncrementalBuffer: !!buffer.incrementalBuffer,
+          bufferSize: buffer.buffer?.length || 0
+        });
+        
         await this.processAudioBuffer(buffer);
       } catch (error) {
         Logger.error(`Failed to process audio for bot ${buffer.botId}:`, error);
@@ -71,17 +112,33 @@ class TranscriptStreamService extends EventEmitter {
   async processAudioBuffer(audioData) {
     const { botId, legacyBotId, meetingUrl, incrementalBuffer, metadata } = audioData;
     
-    // Get or create session
+    Logger.debug(`Processing audio buffer details:`, {
+      botId,
+      legacyBotId,
+      meetingUrl,
+      hasIncrementalBuffer: !!incrementalBuffer,
+      fingerprint: audioData.fingerprint
+    });
+    
+    // Get session (should already exist from bot pool update)
     let sessionId = this.botToSessionMap.get(legacyBotId);
     if (!sessionId) {
+      Logger.warn(`No session found for bot ${botId}, creating one now`);
       sessionId = this.createSession(botId, legacyBotId, meetingUrl);
     }
 
     const session = this.transcriptSessions.get(sessionId);
-    if (!session) return;
+    if (!session) {
+      Logger.error(`Session ${sessionId} not found after creation`);
+      return;
+    }
 
     // Check if we have new audio to process
     if (!incrementalBuffer || session.lastProcessedFingerprint === audioData.fingerprint) {
+      Logger.debug(`No new audio to process for session ${sessionId}`, {
+        hasIncrementalBuffer: !!incrementalBuffer,
+        fingerprintMatch: session.lastProcessedFingerprint === audioData.fingerprint
+      });
       return;
     }
 
@@ -146,7 +203,30 @@ class TranscriptStreamService extends EventEmitter {
     
     Logger.info(`Created transcript session ${sessionId} for bot ${botId}`);
     
+    // Fetch metadata asynchronously
+    this.fetchSessionMetadata(session);
+    
     return sessionId;
+  }
+
+  /**
+   * Fetch and update session metadata
+   * @param {Object} session - Session object
+   */
+  async fetchSessionMetadata(session) {
+    try {
+      const metadata = await MeetingMetadataService.getMeetingMetadata(
+        session.botId,
+        session.legacyBotId
+      );
+      session.metadata = metadata;
+      Logger.info(`Updated metadata for session ${session.sessionId}`, {
+        event_id: metadata.event_id,
+        participantCount: metadata.participants?.length || 0
+      });
+    } catch (error) {
+      Logger.error(`Failed to fetch metadata for session ${session.sessionId}:`, error);
+    }
   }
 
   /**
@@ -158,148 +238,139 @@ class TranscriptStreamService extends EventEmitter {
     const session = this.transcriptSessions.get(sessionId);
     if (!session) return;
 
-    // Update language information
-    if (!session.detectedLanguage || transcription.languageConfidence > session.languageConfidence) {
-      session.detectedLanguage = transcription.detectedLanguage;
-      session.languageConfidence = transcription.languageConfidence;
-      session.alternativeLanguages = transcription.alternativeLanguages;
-    }
-
-    // Add new segments
-    const newSegments = transcription.segments.map(segment => ({
-      ...segment,
-      sessionTime: Date.now() - session.startedAt.getTime(),
-      id: `${sessionId}_seg_${session.segments.length + 1}`
-    }));
-
-    session.segments.push(...newSegments);
-    
-    // Update speakers
-    newSegments.forEach(segment => {
-      if (segment.speaker && segment.speaker !== 'Unknown') {
-        session.speakers.add(segment.speaker);
-      }
-    });
-
-    // Update stats
-    session.wordCount += transcription.wordCount;
-    session.duration = Math.max(
-      session.duration,
-      ...newSegments.map(s => s.endTime)
-    );
-    session.lastUpdated = new Date();
-
-    // Update context for next transcription
-    if (newSegments.length > 0) {
-      const lastSegment = newSegments[newSegments.length - 1];
-      session.context = {
-        lastSpeaker: lastSegment.speaker,
-        totalDuration: session.duration,
-        speakers: Array.from(session.speakers)
-      };
-    }
-
-    this.stats.totalSegments += newSegments.length;
-    this.stats.totalWords += transcription.wordCount;
-
-    // Emit updates to SSE clients
-    this.emitTranscriptUpdate(sessionId, newSegments);
-    
-    Logger.debug(`Updated session ${sessionId} with ${newSegments.length} new segments`);
-  }
-
-  /**
-   * Emit transcript updates to SSE clients
-   * @param {string} sessionId - Session ID
-   * @param {Array} newSegments - New transcript segments
-   */
-  emitTranscriptUpdate(sessionId, newSegments) {
-    const clients = this.sseClients.get(sessionId);
-    if (!clients || clients.size === 0) return;
-
-    const session = this.transcriptSessions.get(sessionId);
-    
-    // Send updates to all connected clients
-    clients.forEach(res => {
-      try {
-        // Send new segments
-        newSegments.forEach(segment => {
-          res.write(`event: transcript_update\n`);
-          res.write(`data: ${JSON.stringify({
-            timestamp: new Date().toISOString(),
-            speaker: segment.speaker,
-            text: segment.text,
-            startTime: segment.startTime,
-            endTime: segment.endTime,
-            confidence: segment.confidence
-          })}\n\n`);
-        });
-
-        // Send speaker changes
-        if (newSegments.length > 1) {
-          for (let i = 1; i < newSegments.length; i++) {
-            if (newSegments[i].speaker !== newSegments[i-1].speaker) {
-              res.write(`event: speaker_change\n`);
-              res.write(`data: ${JSON.stringify({
-                timestamp: new Date().toISOString(),
-                previousSpeaker: newSegments[i-1].speaker,
-                currentSpeaker: newSegments[i].speaker
-              })}\n\n`);
-            }
-          }
+    // Add segments
+    if (transcription.segments && transcription.segments.length > 0) {
+      transcription.segments.forEach(segment => {
+        const segmentWithId = {
+          ...segment,
+          id: `${sessionId}_seg_${session.segments.length + 1}`,
+          sessionTime: Date.now() - session.startedAt.getTime()
+        };
+        
+        session.segments.push(segmentWithId);
+        
+        // Update speakers
+        if (segment.speaker) {
+          session.speakers.add(segment.speaker);
         }
+      });
 
-        // Send session update
-        res.write(`event: session_update\n`);
-        res.write(`data: ${JSON.stringify({
+      // Update statistics
+      session.wordCount = transcription.wordCount || session.wordCount;
+      session.duration = transcription.duration || session.duration;
+      
+      // Update language detection
+      if (transcription.detectedLanguage) {
+        session.detectedLanguage = transcription.detectedLanguage;
+        session.languageConfidence = transcription.languageConfidence || 0;
+        session.alternativeLanguages = transcription.alternativeLanguages || [];
+      }
+
+      // Update context for next transcription
+      session.context = transcription.context || session.context;
+      
+      // Update last updated timestamp
+      session.lastUpdated = new Date();
+
+      // Update global stats
+      this.stats.totalSegments += transcription.segments.length;
+      this.stats.totalWords = session.wordCount;
+
+      // Broadcast update to SSE clients
+      this.broadcastUpdate(sessionId, {
+        type: 'transcript_update',
+        segments: transcription.segments,
+        stats: {
           wordCount: session.wordCount,
           duration: session.duration,
           speakerCount: session.speakers.size,
           detectedLanguage: session.detectedLanguage
-        })}\n\n`);
+        }
+      });
 
-      } catch (error) {
-        Logger.error('Failed to send SSE update:', error);
-        clients.delete(res);
-      }
-    });
+      Logger.info(`Updated transcript for session ${sessionId}`, {
+        newSegments: transcription.segments.length,
+        totalSegments: session.segments.length,
+        wordCount: session.wordCount
+      });
+    }
   }
 
   /**
-   * Get all active transcript sessions
-   * @returns {Array} Active sessions
+   * Stop a transcript session
+   * @param {string} sessionId - Session ID
+   */
+  stopSession(sessionId) {
+    const session = this.transcriptSessions.get(sessionId);
+    if (!session) return;
+
+    session.status = 'stopped';
+    session.lastUpdated = new Date();
+    this.stats.activeSessions--;
+
+    // Remove from bot mapping
+    this.botToSessionMap.delete(session.legacyBotId);
+
+    // Notify SSE clients
+    this.broadcastUpdate(sessionId, {
+      type: 'session_stopped',
+      sessionId,
+      timestamp: new Date()
+    });
+
+    // Close all SSE connections for this session
+    const clients = this.sseClients.get(sessionId);
+    if (clients) {
+      clients.forEach(client => {
+        try {
+          client.end();
+        } catch (error) {
+          // Ignore errors when closing
+        }
+      });
+      this.sseClients.delete(sessionId);
+    }
+
+    Logger.info(`Stopped transcript session ${sessionId}`);
+  }
+
+  /**
+   * Get active transcript sessions
+   * @returns {Array} Array of active sessions
    */
   getActiveSessions() {
-    return Array.from(this.transcriptSessions.values())
-      .filter(session => session.status === 'active')
-      .map(session => ({
-        sessionId: session.sessionId,
-        botId: session.botId,
-        legacyBotId: session.legacyBotId,
-        meetingUrl: session.meetingUrl,
-        startedAt: session.startedAt,
-        duration: session.duration,
-        durationFormatted: this.formatDuration(session.duration),
-        transcriptLength: session.segments.reduce((sum, seg) => sum + seg.text.length, 0),
-        lastUpdated: session.lastUpdated,
-        status: session.status,
-        detectedLanguage: session.detectedLanguage,
-        languageConfidence: session.languageConfidence,
-        speakerCount: session.speakers.size,
-        wordCount: session.wordCount
-      }));
+    const sessions = [];
+    this.transcriptSessions.forEach(session => {
+      if (session.status === 'active') {
+        sessions.push({
+          sessionId: session.sessionId,
+          botId: session.botId,
+          legacyBotId: session.legacyBotId,
+          meetingUrl: session.meetingUrl,
+          startedAt: session.startedAt,
+          duration: session.duration,
+          durationFormatted: this.formatDuration(session.duration),
+          transcriptLength: session.segments.length,
+          lastUpdated: session.lastUpdated,
+          status: session.status,
+          detectedLanguage: session.detectedLanguage,
+          languageConfidence: session.languageConfidence,
+          speakerCount: session.speakers.size,
+          wordCount: session.wordCount
+        });
+      }
+    });
+    return sessions;
   }
 
   /**
    * Get transcript for a session
    * @param {string} sessionId - Session ID
-   * @returns {Object} Transcript data
+   * @returns {Object|null} Transcript data
    */
   getTranscript(sessionId) {
     const session = this.transcriptSessions.get(sessionId);
-    if (!session) {
-      throw new AppError(`Session ${sessionId} not found`, 404);
-    }
+    if (!session) return null;
 
     return {
       sessionId: session.sessionId,
@@ -333,24 +404,12 @@ class TranscriptStreamService extends EventEmitter {
     if (!this.sseClients.has(sessionId)) {
       this.sseClients.set(sessionId, new Set());
     }
-    
     this.sseClients.get(sessionId).add(res);
-    
-    // Send initial data
-    const session = this.transcriptSessions.get(sessionId);
-    if (session) {
-      res.write(`event: connected\n`);
-      res.write(`data: ${JSON.stringify({
-        sessionId,
-        currentDuration: session.duration,
-        wordCount: session.wordCount,
-        segmentCount: session.segments.length
-      })}\n\n`);
-    }
+    Logger.debug(`Added SSE client for session ${sessionId}`);
   }
 
   /**
-   * Remove SSE client
+   * Remove SSE client for a session
    * @param {string} sessionId - Session ID
    * @param {Object} res - Express response object
    */
@@ -365,41 +424,43 @@ class TranscriptStreamService extends EventEmitter {
   }
 
   /**
-   * Stop transcription for a session
+   * Broadcast update to SSE clients
    * @param {string} sessionId - Session ID
+   * @param {Object} data - Data to broadcast
    */
-  stopSession(sessionId) {
-    const session = this.transcriptSessions.get(sessionId);
-    if (!session) {
-      throw new AppError(`Session ${sessionId} not found`, 404);
-    }
-
-    session.status = 'stopped';
-    session.lastUpdated = new Date();
-    this.stats.activeSessions--;
-
-    // Remove bot mapping
-    this.botToSessionMap.delete(session.legacyBotId);
-
-    // Notify SSE clients
+  broadcastUpdate(sessionId, data) {
     const clients = this.sseClients.get(sessionId);
-    if (clients) {
-      clients.forEach(res => {
-        try {
-          res.write(`event: session_stopped\n`);
-          res.write(`data: ${JSON.stringify({
-            sessionId,
-            timestamp: new Date().toISOString()
-          })}\n\n`);
-          res.end();
-        } catch (error) {
-          // Client already disconnected
-        }
-      });
-      this.sseClients.delete(sessionId);
-    }
+    if (!clients) return;
 
-    Logger.info(`Stopped transcript session ${sessionId}`);
+    const eventData = JSON.stringify({
+      ...data,
+      timestamp: new Date().toISOString()
+    });
+
+    clients.forEach(client => {
+      try {
+        if (data.segments) {
+          // Send each segment as a separate event
+          data.segments.forEach(segment => {
+            client.write(`event: transcript_update\n`);
+            client.write(`data: ${JSON.stringify({
+              timestamp: new Date().toISOString(),
+              speaker: segment.speaker,
+              text: segment.text,
+              startTime: segment.startTime,
+              endTime: segment.endTime,
+              confidence: segment.confidence
+            })}\n\n`);
+          });
+        } else {
+          client.write(`event: ${data.type}\n`);
+          client.write(`data: ${eventData}\n\n`);
+        }
+      } catch (error) {
+        Logger.error('Error broadcasting to SSE client:', error);
+        this.removeSSEClient(sessionId, client);
+      }
+    });
   }
 
   /**
@@ -407,7 +468,9 @@ class TranscriptStreamService extends EventEmitter {
    * @param {number} seconds - Duration in seconds
    * @returns {string} Formatted duration
    */
-  formatDuration(seconds) {
+  static formatDuration(seconds) {
+    if (!seconds || seconds < 0) return '00:00:00';
+    
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
@@ -424,7 +487,13 @@ class TranscriptStreamService extends EventEmitter {
   getStats() {
     return {
       ...this.stats,
-      transcriptionStats: GeminiTranscriptionService.getStats()
+      sessions: Array.from(this.transcriptSessions.values()).map(session => ({
+        sessionId: session.sessionId,
+        duration: this.formatDuration(session.duration),
+        wordCount: session.wordCount,
+        language: session.detectedLanguage,
+        speakers: session.speakers.size
+      }))
     };
   }
 
@@ -434,18 +503,13 @@ class TranscriptStreamService extends EventEmitter {
   stop() {
     this.isRunning = false;
     
-    // Close all SSE connections
-    this.sseClients.forEach((clients, sessionId) => {
-      clients.forEach(res => {
-        try {
-          res.end();
-        } catch (error) {
-          // Ignore
-        }
-      });
+    // Stop all active sessions
+    this.transcriptSessions.forEach((session, sessionId) => {
+      if (session.status === 'active') {
+        this.stopSession(sessionId);
+      }
     });
     
-    this.sseClients.clear();
     Logger.info('TranscriptStreamService stopped');
   }
 }
