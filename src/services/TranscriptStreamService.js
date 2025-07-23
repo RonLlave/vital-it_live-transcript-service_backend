@@ -143,12 +143,27 @@ class TranscriptStreamService extends EventEmitter {
       return;
     }
 
+    // Check if meeting has been running for minimum required time
+    const transcriptionStartDelay = parseInt(process.env.TRANSCRIPTION_START_DELAY) || 30;
+    const meetingDuration = (Date.now() - session.startedAt.getTime()) / 1000;
+    if (meetingDuration < transcriptionStartDelay) {
+      Logger.info(`⏳ Waiting for meeting to stabilize before transcribing`, {
+        sessionId,
+        botId,
+        meetingDuration: meetingDuration.toFixed(1),
+        waitTime: (transcriptionStartDelay - meetingDuration).toFixed(1),
+        requiredDelay: transcriptionStartDelay
+      });
+      return;
+    }
+
     // Transcribe the audio
     Logger.info(`🔄 Processing audio for transcription`, {
       sessionId,
       botId,
       audioSize: incrementalBuffer.length,
-      existingSegments: session.segments.length
+      existingSegments: session.segments.length,
+      meetingDuration: meetingDuration.toFixed(1)
     });
 
     const transcription = await GeminiTranscriptionService.transcribeAudio(

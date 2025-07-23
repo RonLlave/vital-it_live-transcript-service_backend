@@ -243,6 +243,7 @@ curl http://localhost:3003/api/status   # Service status
    - Check Meeting Bot API connectivity
    - Ensure bots are in meetings
    - Review audio fetch logs
+   - Check if meeting has been running for at least 30 seconds (TRANSCRIPTION_START_DELAY)
 
 3. **High Memory Usage**
    - Check active session count
@@ -255,6 +256,13 @@ curl http://localhost:3003/api/status   # Service status
    - Verify client connection handling
    - Test with curl for raw SSE
    - Check proxy/firewall settings
+
+## Known Issues and Workarounds
+
+1. **Bot ID Mapping**: Meeting Bot API uses different field names (`id`, `poolBotId`, `legacyBotId`). Always check all fields.
+2. **Audio Availability**: Audio may not be immediately available when bot joins. Service handles 425 status gracefully.
+3. **Rate Limiting**: Implement exponential backoff for external API calls
+4. **Premature Audio**: Audio at the start of meetings can be unstable. Service waits 30 seconds (configurable via `TRANSCRIPTION_START_DELAY`) before starting transcription to ensure audio quality.
 
 ## Contact & Support
 

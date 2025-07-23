@@ -85,4 +85,30 @@ router.post('/force-poll', asyncHandler(async (req, res) => {
   });
 }));
 
+/**
+ * Force process audio buffers for transcription
+ * POST /api/debug/force-transcribe
+ */
+router.post('/force-transcribe', asyncHandler(async (req, res) => {
+  const { botId } = req.body;
+  
+  // Force process all audio buffers
+  await TranscriptStreamService.processAudioBuffers();
+  
+  const sessions = Array.from(TranscriptStreamService.transcriptSessions.values());
+  const sessionInfo = sessions.map(s => ({
+    sessionId: s.sessionId,
+    botId: s.botId,
+    segments: s.segments.length,
+    lastProcessed: s.lastProcessedFingerprint ? 'Yes' : 'No'
+  }));
+  
+  res.json({
+    success: true,
+    message: 'Forced audio processing completed',
+    processedSessions: sessionInfo.length,
+    sessions: sessionInfo
+  });
+}));
+
 module.exports = router;

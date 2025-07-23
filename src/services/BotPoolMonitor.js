@@ -186,6 +186,12 @@ class BotPoolMonitor {
     const newBots = bots.filter(bot => !previousBotIds.has(bot.legacyBotId));
     // Find removed bots
     const removedBotIds = [...previousBotIds].filter(id => !currentBotIds.has(id));
+    
+    // Find bots with newly available audio
+    const botsWithNewAudio = bots.filter(bot => {
+      const previousBot = this.activeBots.get(bot.legacyBotId);
+      return previousBot && !previousBot.audioBlobUrl && bot.audioBlobUrl;
+    });
 
     // Update active bots map
     this.activeBots.clear();
@@ -198,13 +204,20 @@ class BotPoolMonitor {
       });
     });
 
-    // Notify listeners of changes
-    if (newBots.length > 0 || removedBotIds.length > 0) {
+    // Notify listeners of changes (including when audio becomes available)
+    if (newBots.length > 0 || removedBotIds.length > 0 || botsWithNewAudio.length > 0) {
+      Logger.info('Bot pool update detected', {
+        newBots: newBots.length,
+        removedBots: removedBotIds.length,
+        botsWithNewAudio: botsWithNewAudio.length
+      });
+      
       this.notifyListeners({
         type: 'update',
         newBots,
         removedBots: removedBotIds,
-        activeBots: Array.from(this.activeBots.values())
+        activeBots: Array.from(this.activeBots.values()),
+        botsWithNewAudio
       });
     }
 
