@@ -1,33 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const TranscriptStreamService = require('../../services/TranscriptStreamService');
-
-/**
- * Test formatDuration
- * GET /api/test/format-duration
- */
-router.get('/format-duration', (req, res) => {
-  try {
-    // Test the static method
-    const formatted = TranscriptStreamService.formatDuration(3661); // 1 hour, 1 minute, 1 second
-    
-    res.json({
-      success: true,
-      test: {
-        input: 3661,
-        output: formatted,
-        expected: '01:01:01'
-      },
-      method: 'TranscriptStreamService.formatDuration (static)'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      stack: error.stack
-    });
-  }
-});
+const axios = require('axios');
+const AudioFetchService = require('../../services/AudioFetchService');
+const BotPoolMonitor = require('../../services/BotPoolMonitor');
 
 /**
  * Test audio fetch directly
@@ -35,7 +10,6 @@ router.get('/format-duration', (req, res) => {
  */
 router.get('/audio-fetch/:legacyBotId', async (req, res) => {
   const { legacyBotId } = req.params;
-  const axios = require('axios');
   
   try {
     const apiUrl = process.env.MEETING_BOT_API_URL;
@@ -54,6 +28,7 @@ router.get('/audio-fetch/:legacyBotId', async (req, res) => {
     );
     
     console.log(`Response status: ${response.status}`);
+    console.log(`Response headers:`, response.headers);
     console.log(`Audio size: ${response.data.byteLength} bytes`);
     
     res.json({
@@ -66,12 +41,57 @@ router.get('/audio-fetch/:legacyBotId', async (req, res) => {
     
   } catch (error) {
     console.error('Audio fetch error:', error.message);
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    }
     
     res.status(error.response?.status || 500).json({
       success: false,
       error: error.message,
       status: error.response?.status,
       test: 'Direct audio fetch failed'
+    });
+  }
+});
+
+/**
+ * Test audio processing for active bot
+ * GET /api/test/process-audio
+ */
+router.get('/process-audio', async (req, res) => {
+  try {
+    const activeBots = BotPoolMonitor.getActiveBots();
+    if (activeBots.length === 0) {
+      return res.json({
+        success: false,
+        error: 'No active bots found'
+      });
+    }
+    
+    const bot = activeBots[0];
+    const result = await AudioFetchService.fetchAudioForBot(bot);
+    
+    res.json({
+      success: true,
+      bot: {
+        poolBotId: bot.poolBotId,
+        legacyBotId: bot.legacyBotId,
+        meetingUrl: bot.meetingUrl
+      },
+      audioFetchResult: result ? {
+        hasAudio: !!result.audioBuffer,
+        audioSize: result.audioBuffer?.length || 0,
+        isIncremental: result.isIncremental,
+        metadata: result.metadata
+      } : null
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
     });
   }
 });

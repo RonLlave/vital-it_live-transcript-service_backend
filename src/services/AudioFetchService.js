@@ -153,9 +153,14 @@ class AudioFetchService {
 
     try {
       const audioBuffer = await withRetry(async () => {
+        Logger.info(`Attempting to fetch audio from: ${this.apiUrl}/api/google-meet-guest/audio-blob/${legacyBotId}`);
         const response = await this.axios.get(
-          `/api/google-meet-guest/audio-blob/${legacyBotId}`
+          `/api/google-meet-guest/audio-blob/${legacyBotId}`,
+          {
+            responseType: 'arraybuffer'
+          }
         );
+        Logger.info(`Audio fetch response status: ${response.status}, size: ${response.data?.byteLength || 0}`);
         return Buffer.from(response.data);
       }, {
         maxRetries: 2,
@@ -247,19 +252,8 @@ class AudioFetchService {
       
       if (error.response?.status === 425) {
         Logger.info(`Audio not ready yet for bot ${botId} (425 Too Early) - will retry on next poll`);
-        // Return minimal data to allow session creation
-        return {
-          botId,
-          legacyBotId,
-          meetingUrl,
-          audioBuffer: null,
-          incrementalBuffer: null,
-          fullBuffer: null,
-          metadata: null,
-          isIncremental: false,
-          timestamp: new Date(),
-          audioNotReady: true
-        };
+        // Don't store anything, just return null to retry next time
+        return null;
       }
       
       Logger.error('Audio fetch error details:', {
