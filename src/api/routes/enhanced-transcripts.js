@@ -3,6 +3,7 @@ const router = express.Router();
 const { asyncHandler, NotFoundError, ValidationError } = require('../../utils/ErrorHandler');
 const Logger = require('../../utils/Logger');
 const TranscriptStreamService = require('../../services/TranscriptStreamService');
+const { formatDuration } = require('../../utils/formatDuration');
 const GeminiTranscriptionService = require('../../services/GeminiTranscriptionService');
 const MeetingMetadataService = require('../../services/MeetingMetadataService');
 
@@ -97,7 +98,7 @@ router.get('/:sessionId', asyncHandler(async (req, res) => {
       actualStartTime: session.startedAt,
       lastUpdated: session.lastUpdated,
       duration: session.duration,
-      durationFormatted: TranscriptStreamService.formatDuration(session.duration),
+      durationFormatted: session.durationFormatted || formatDuration(session.duration),
       status: session.status,
       recordingEnabled: session.metadata?.recordingEnabled || false
     },

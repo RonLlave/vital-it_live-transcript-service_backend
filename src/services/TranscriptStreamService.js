@@ -5,6 +5,7 @@ const GeminiTranscriptionService = require('./GeminiTranscriptionService');
 const MeetingMetadataService = require('./MeetingMetadataService');
 const BotPoolMonitor = require('./BotPoolMonitor');
 const { AppError } = require('../utils/ErrorHandler');
+const { formatDuration } = require('../utils/formatDuration');
 
 class TranscriptStreamService extends EventEmitter {
   constructor() {
@@ -349,7 +350,7 @@ class TranscriptStreamService extends EventEmitter {
           meetingUrl: session.meetingUrl,
           startedAt: session.startedAt,
           duration: session.duration,
-          durationFormatted: TranscriptStreamService.formatDuration(session.duration),
+          durationFormatted: formatDuration(session.duration),
           transcriptLength: session.segments.length,
           lastUpdated: session.lastUpdated,
           status: session.status,
@@ -390,7 +391,7 @@ class TranscriptStreamService extends EventEmitter {
         startedAt: session.startedAt,
         lastUpdated: session.lastUpdated,
         status: session.status,
-        durationFormatted: TranscriptStreamService.formatDuration(session.duration)
+        durationFormatted: formatDuration(session.duration)
       }
     };
   }
@@ -463,22 +464,6 @@ class TranscriptStreamService extends EventEmitter {
     });
   }
 
-  /**
-   * Format duration in seconds to HH:MM:SS
-   * @param {number} seconds - Duration in seconds
-   * @returns {string} Formatted duration
-   */
-  static formatDuration(seconds) {
-    if (!seconds || seconds < 0) return '00:00:00';
-    
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    return [hours, minutes, secs]
-      .map(v => v.toString().padStart(2, '0'))
-      .join(':');
-  }
 
   /**
    * Get service statistics
@@ -489,7 +474,7 @@ class TranscriptStreamService extends EventEmitter {
       ...this.stats,
       sessions: Array.from(this.transcriptSessions.values()).map(session => ({
         sessionId: session.sessionId,
-        duration: TranscriptStreamService.formatDuration(session.duration),
+        duration: formatDuration(session.duration),
         wordCount: session.wordCount,
         language: session.detectedLanguage,
         speakers: session.speakers.size

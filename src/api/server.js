@@ -50,6 +50,10 @@ function createServer() {
     message: 'Too many requests from this IP, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
+    // Skip rate limiting in development or when behind trusted proxy
+    skip: (req) => process.env.NODE_ENV === 'development',
+    // Use X-Forwarded-For when behind proxy
+    keyGenerator: (req) => req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress
   });
   app.use('/api/', limiter);
 
@@ -79,6 +83,7 @@ function createServer() {
   app.use('/api/status', statusRoutes);
   app.use('/api/transcripts', transcriptRoutes);
   app.use('/api/enhanced-transcripts', enhancedTranscriptRoutes);
+  app.use('/api/live-transcript', enhancedTranscriptRoutes); // Alias for frontend compatibility
   
   // Test routes (remove in production)
   app.use('/test-supabase', testSupabaseRoutes);
