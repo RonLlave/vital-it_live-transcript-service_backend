@@ -12,6 +12,9 @@ A Node.js backend service that consumes audio streams from the Meeting Bot API, 
 - **Export Formats**: Download transcripts as TXT, JSON, or SRT files
 - **Health Monitoring**: Comprehensive health checks and service status endpoints
 - **Docker Ready**: Containerized deployment with health checks
+- **Event ID Based Access**: Use Google Meet event IDs instead of bot IDs
+- **Service Resilience**: Automatic recovery when external APIs become unavailable
+- **Transcription Delay**: Configurable delay before starting transcription (default 30s)
 
 ## Architecture
 
@@ -31,7 +34,6 @@ A Node.js backend service that consumes audio streams from the Meeting Bot API, 
 ## Prerequisites
 
 - Node.js 18+ 
-- FFmpeg (for audio processing)
 - Google Gemini API key
 - Access to Meeting Bot API
 
@@ -97,6 +99,7 @@ docker run -d -p 3003:3003 --env-file .env live-transcript-service:latest
 | `GOOGLE_GEMINI_MODEL` | Gemini model to use | gemini-1.5-flash |
 | `AUDIO_FETCH_INTERVAL` | Audio polling interval (ms) | 5000 |
 | `AUDIO_BUFFER_SIZE` | Audio buffer size (seconds) | 30 |
+| `TRANSCRIPTION_START_DELAY` | Delay before starting transcription (seconds) | 30 |
 | `ENABLE_SPEAKER_DIARIZATION` | Enable speaker identification | true |
 | `TRANSCRIPT_LANGUAGE` | Language mode (auto/specific) | auto |
 | `TRANSCRIPT_LANGUAGE_HINTS` | Supported languages | en,de,es,fr,it,pt,nl,pl |
@@ -136,8 +139,8 @@ Service status and statistics.
 
 ### Transcript Management
 
-#### GET /api/transcripts/active
-List all active transcription sessions.
+#### GET /api/transcript-sessions
+List all active transcription sessions with event IDs.
 
 ```json
 {
@@ -146,18 +149,21 @@ List all active transcription sessions.
   "sessions": [
     {
       "sessionId": "bot_1_transcript",
+      "event_id": "google_meet_event_123",
+      "live_transcript_url": "https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/google_meet_event_123",
       "botId": "bot_1",
       "meetingUrl": "https://meet.google.com/abc-defg-hij",
       "duration": 1234,
       "wordCount": 4567,
-      "detectedLanguage": "en"
+      "detectedLanguage": "en",
+      "hasAiSummary": true
     }
   ]
 }
 ```
 
-#### GET /api/transcripts/:sessionId
-Get full transcript for a specific session.
+#### GET /api/live-transcript/:eventId or /api/enhanced-transcripts/:eventId
+Get full transcript with AI summary for a specific event ID.
 
 ```json
 {
@@ -168,8 +174,12 @@ Get full transcript for a specific session.
       {
         "speaker": "Speaker 1",
         "text": "Hello everyone",
+        "timestamp": "00:00:05",
+        "startTimestamp": "00:00:05",
+        "endTimestamp": "00:00:08",
         "startTime": 5.0,
-        "endTime": 8.5
+        "endTime": 8.5,
+        "confidence": 0.95
       }
     ],
     "fullText": "Full transcript text...",
@@ -196,6 +206,16 @@ Stop transcription for a session.
 #### GET /api/transcripts/:sessionId/download
 Download transcript in various formats.
 - Query params: `format=txt|json|srt`
+
+### Debug Endpoints
+
+These endpoints are available for debugging and development:
+
+- `GET /api/debug/bot-pool` - Check current bot pool status
+- `GET /api/debug/transcript-sessions` - View all active transcript sessions
+- `POST /api/debug/force-poll` - Force immediate bot pool polling
+- `POST /api/debug/force-transcribe` - Force immediate audio processing
+- `GET /api/test/transcription/:botId` - Test transcription for a specific bot
 
 ## Service Architecture
 

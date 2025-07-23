@@ -208,6 +208,23 @@ npm run test        # Verify nothing breaks
 3. **CDN Integration**: For static assets
 4. **Microservices Split**: Separate transcription service
 
+## Recent Updates (July 2025)
+
+### Service Resilience
+- Added `ServiceMonitor` utility for tracking external service health
+- Service now recovers automatically when Meeting Bot API becomes unavailable
+- Enhanced error handling prevents crashes during API downtime
+
+### API Changes
+- **Event ID Based Access**: Endpoints now use event IDs instead of bot IDs
+- **New Endpoint**: `/api/transcript-sessions` lists all active sessions
+- **Enhanced Response**: Sessions include complete `live_transcript_url`
+- **Formatted Timestamps**: Segments now include HH:mm:ss timestamps
+
+### Configuration
+- Added `TRANSCRIPTION_START_DELAY` (default 30s) to avoid premature audio
+- Removed FFmpeg dependency for simpler audio validation
+
 ## Commands Reference
 
 ```bash
@@ -229,6 +246,10 @@ docker-compose down                     # Stop services
 # Monitoring
 curl http://localhost:3003/health       # Health check
 curl http://localhost:3003/api/status   # Service status
+
+# Debug Operations
+curl -X POST http://localhost:3003/api/debug/force-poll        # Force bot pool check
+curl -X POST http://localhost:3003/api/debug/force-transcribe  # Force audio processing
 ```
 
 ## Troubleshooting Checklist
