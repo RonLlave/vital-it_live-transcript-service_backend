@@ -12,6 +12,7 @@ const GeminiTranscriptionService = require('./services/GeminiTranscriptionServic
 const TranscriptStreamService = require('./services/TranscriptStreamService');
 const MeetingMetadataService = require('./services/MeetingMetadataService');
 const SupabaseClient = require('./utils/SupabaseClient');
+const ServiceMonitor = require('./utils/ServiceMonitor');
 
 // Handle uncaught exceptions and rejections
 handleUncaughtExceptions();
@@ -52,15 +53,59 @@ async function initializeServices() {
     await AudioFetchService.initialize();
     Logger.info('✓ Audio Fetch Service initialized');
 
+    // Wait for Meeting Bot API to be available before starting monitors
+    await waitForMeetingBotAPI();
+
     // Start Bot Pool Monitor
     BotPoolMonitor.start();
     Logger.info('✓ Bot Pool Monitor started');
+
+    // Initialize Service Monitor
+    initializeServiceMonitor();
+    Logger.info('✓ Service Monitor started');
 
     Logger.info('All services initialized successfully');
   } catch (error) {
     Logger.error('Failed to initialize services:', error);
     throw error;
   }
+}
+
+/**
+ * Wait for Meeting Bot API to be available
+ */
+async function waitForMeetingBotAPI() {
+  const axios = require('axios');
+  const apiUrl = process.env.MEETING_BOT_API_URL;
+  const maxRetries = 10;
+  const retryDelay = 5000; // 5 seconds
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      Logger.info(`Checking Meeting Bot API availability (attempt ${i + 1}/${maxRetries})...`);
+      const response = await axios.get(`${apiUrl}/health`, {
+        timeout: 5000,
+        validateStatus: () => true
+      });
+      
+      if (response.status === 200) {
+        Logger.info('✓ Meeting Bot API is available');
+        return;
+      } else {
+        Logger.warn(`Meeting Bot API returned status ${response.status}`);
+      }
+    } catch (error) {
+      Logger.warn(`Meeting Bot API not available: ${error.message}`);
+    }
+
+    if (i < maxRetries - 1) {
+      Logger.info(`Waiting ${retryDelay / 1000} seconds before retry...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+  }
+
+  // Continue anyway after max retries
+  Logger.warn('Meeting Bot API not available after maximum retries, continuing anyway...');
 }
 
 /**
@@ -118,6 +163,9 @@ async function gracefulShutdown(server) {
       TranscriptStreamService.stop();
       Logger.info('✓ Transcript Stream Service stopped');
 
+      ServiceMonitor.stop();
+      Logger.info('✓ Service Monitor stopped');
+
       Logger.info('Graceful shutdown completed');
       process.exit(0);
     } catch (error) {
@@ -149,6 +197,31 @@ if (process.env.ENABLE_METRICS === 'true') {
 setInterval(() => {
   AudioFetchService.cleanupOldBuffers();
 }, 300000); // Every 5 minutes
+
+/**
+ * Initialize service monitor for external dependencies
+ */
+function initializeServiceMonitor() {
+  // Register Meeting Bot API for monitoring
+  ServiceMonitor.register('meeting-bot-api', {
+    url: `${process.env.MEETING_BOT_API_URL}/health`,
+    onRecover: () => {
+      Logger.info('Meeting Bot API recovered - resuming bot pool monitoring');
+      // Restart bot pool monitor to catch up on any missed updates
+      BotPoolMonitor.stop();
+      setTimeout(() => {
+        BotPoolMonitor.start();
+        Logger.info('Bot Pool Monitor restarted after API recovery');
+      }, 2000);
+    },
+    onFail: () => {
+      Logger.warn('Meeting Bot API went down - bot pool monitoring will retry with backoff');
+    }
+  });
+
+  // Start monitoring
+  ServiceMonitor.start();
+}
 
 // Start the server
 startServer().catch(error => {

@@ -55,16 +55,41 @@ class GeminiTranscriptionService {
     const startTime = Date.now();
     this.transcriptionStats.total++;
 
+    Logger.info(`🎤 Starting Gemini transcription`, {
+      botId,
+      audioSize: audioBuffer.length,
+      audioSizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2),
+      isIncremental,
+      meetingUrl
+    });
+
     try {
       // Process audio for Gemini
+      Logger.debug(`Processing audio for Gemini...`);
       const processedAudio = await AudioProcessor.processAudioForGemini(audioBuffer);
       const audioBase64 = AudioProcessor.audioToBase64(processedAudio);
       
-      // Get audio metadata
+      Logger.info(`Audio processed for Gemini`, {
+        originalSize: audioBuffer.length,
+        processedSize: processedAudio.length,
+        base64Length: audioBase64.length
+      });
+      
+      // Get audio metadata  
+      Logger.debug(`Extracting audio metadata...`);
       const metadata = await AudioProcessor.getAudioMetadata(audioBuffer);
+      
+      Logger.info(`Audio metadata extracted`, {
+        duration: metadata.duration,
+        sampleRate: metadata.sampleRate,
+        channels: metadata.channels,
+        format: metadata.format
+      });
       
       // Build transcription prompt
       const prompt = this.buildTranscriptionPrompt(isIncremental, previousContext);
+      
+      Logger.debug(`Sending request to Gemini API...`);
       
       // Prepare content for Gemini
       const contents = [{
@@ -81,12 +106,19 @@ class GeminiTranscriptionService {
 
       // Call Gemini API with retry logic
       const result = await withRetry(async () => {
+        Logger.info(`📡 Calling Gemini API for transcription...`);
         const response = await this.geminiModel.generateContent({ contents });
-        return response.response.text();
+        const responseText = response.response.text();
+        Logger.info(`✅ Gemini API response received`, {
+          responseLength: responseText.length,
+          responsePreview: responseText.substring(0, 200) + '...'
+        });
+        return responseText;
       }, {
         maxRetries: 3,
         delay: 2000,
         shouldRetry: (error) => {
+          Logger.error(`⚠️ Gemini API error, checking if retryable:`, error.message);
           if (error.message?.includes('rate limit')) {
             throw new RateLimitError('Gemini API', 60000);
           }
@@ -95,6 +127,7 @@ class GeminiTranscriptionService {
       });
 
       // Parse transcription response
+      Logger.debug(`Parsing Gemini response...`);
       const transcription = this.parseTranscriptionResponse(result);
       
       // Add metadata
@@ -110,6 +143,15 @@ class GeminiTranscriptionService {
       this.transcriptionStats.successful++;
       this.transcriptionStats.totalDuration += (Date.now() - startTime);
       
+      Logger.info(`✨ Transcription completed successfully`, {
+        botId,
+        segments: transcription.segments?.length || 0,
+        wordCount: transcription.wordCount || 0,
+        language: transcription.detectedLanguage || 'unknown',
+        confidence: transcription.languageConfidence || 0,
+        processingTime: Date.now() - startTime
+      });
+
       Logger.transcriptionMetric(
         botId,
         Date.now() - startTime,

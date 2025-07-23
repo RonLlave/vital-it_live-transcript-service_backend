@@ -83,7 +83,15 @@ class AudioFetchService {
           })
           .catch(error => {
             const botIdentifier = bot.poolBotId || bot.botId || bot.legacyBotId || 'unknown';
-            Logger.error(`Failed to fetch audio for bot ${botIdentifier}:`, error);
+            
+            // Don't log as error if Meeting Bot API is down
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+              Logger.warn(`Meeting Bot API unavailable for audio fetch (bot ${botIdentifier})`, {
+                code: error.code
+              });
+            } else {
+              Logger.error(`Failed to fetch audio for bot ${botIdentifier}:`, error);
+            }
           });
       });
 

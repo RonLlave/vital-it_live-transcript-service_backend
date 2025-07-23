@@ -144,6 +144,13 @@ class TranscriptStreamService extends EventEmitter {
     }
 
     // Transcribe the audio
+    Logger.info(`🔄 Processing audio for transcription`, {
+      sessionId,
+      botId,
+      audioSize: incrementalBuffer.length,
+      existingSegments: session.segments.length
+    });
+
     const transcription = await GeminiTranscriptionService.transcribeAudio(
       incrementalBuffer,
       {
@@ -154,9 +161,22 @@ class TranscriptStreamService extends EventEmitter {
       }
     );
 
-    // Update session with new transcription
-    this.updateSession(sessionId, transcription);
-    session.lastProcessedFingerprint = audioData.fingerprint;
+    if (transcription && transcription.segments && transcription.segments.length > 0) {
+      Logger.info(`📝 Transcription successful, updating session`, {
+        sessionId,
+        newSegments: transcription.segments.length,
+        totalSegments: session.segments.length + transcription.segments.length
+      });
+      
+      // Update session with new transcription
+      this.updateSession(sessionId, transcription);
+      session.lastProcessedFingerprint = audioData.fingerprint;
+    } else {
+      Logger.warn(`⚠️ No segments received from transcription`, {
+        sessionId,
+        transcription
+      });
+    }
   }
 
   /**

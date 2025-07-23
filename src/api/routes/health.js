@@ -7,6 +7,7 @@ const Logger = require('../../utils/Logger');
 const BotPoolMonitor = require('../../services/BotPoolMonitor');
 const AudioFetchService = require('../../services/AudioFetchService');
 const TranscriptStreamService = require('../../services/TranscriptStreamService');
+const ServiceMonitor = require('../../utils/ServiceMonitor');
 
 /**
  * Health check endpoint
@@ -26,19 +27,23 @@ router.get('/', asyncHandler(async (req, res) => {
     }
   };
 
-  // Check Meeting Bot API
+  // Check Meeting Bot API (don't let this crash the health endpoint)
   try {
     const apiUrl = process.env.MEETING_BOT_API_URL;
     const response = await axios.get(`${apiUrl}/health`, {
       timeout: 5000,
       headers: process.env.MEETING_BOT_API_KEY ? {
         'Authorization': `Bearer ${process.env.MEETING_BOT_API_KEY}`
-      } : {}
+      } : {},
+      validateStatus: () => true // Don't throw on any status
     });
     healthChecks.meetingBotAPI = response.status === 200 ? 'healthy' : 'unhealthy';
   } catch (error) {
     healthChecks.meetingBotAPI = 'unhealthy';
-    Logger.warn('Meeting Bot API health check failed:', { error: error.message });
+    Logger.warn('Meeting Bot API health check failed:', { 
+      error: error.message,
+      code: error.code 
+    });
   }
 
   // Check Gemini API
@@ -74,6 +79,10 @@ router.get('/', asyncHandler(async (req, res) => {
 
   const transcriptStats = TranscriptStreamService.getStats();
   healthChecks.services.transcriptStreamService = transcriptStats.activeSessions >= 0 ? 'healthy' : 'error';
+
+  // Add external services status
+  const externalServices = ServiceMonitor.getAllStatus();
+  healthChecks.externalServices = externalServices;
 
   // Determine overall health
   const isHealthy = 

@@ -122,8 +122,23 @@ class BotPoolMonitor {
     } catch (error) {
       Logger.error('Bot pool polling error:', error);
       
+      // Don't crash on Meeting Bot API errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.code === 'ENOTFOUND') {
+        Logger.warn('Meeting Bot API is unreachable, will retry...', {
+          code: error.code,
+          endpoint: this.apiUrl
+        });
+      }
+      
+      // Clear active bots if API is down
+      if (this.activeBots.size > 0) {
+        Logger.info('Clearing active bots due to API error');
+        this.processBotUpdates([]);
+      }
+      
       // Retry with exponential backoff on error
       const retryDelay = Math.min(this.pollInterval * 2, 30000);
+      Logger.info(`Retrying bot pool poll in ${retryDelay}ms`);
       this.pollTimer = setTimeout(() => this.poll(), retryDelay);
     }
   }

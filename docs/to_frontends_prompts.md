@@ -1,286 +1,295 @@
-# Frontend Integration Update - Live Transcript Service
+# Frontend Integration Guide for Live Transcript Service
 
-## Important Update (July 23, 2025)
+## Overview
+The Live Transcript Service provides real-time transcription and AI summaries for Google Meet meetings. This guide helps frontend developers integrate with the service API.
 
-The Live Transcript Service backend has been updated with fixes and improvements. This document provides the latest integration guidelines for frontend developers.
+## Key Updates (Latest)
+- Service now recovers automatically when Meeting Bot API becomes unavailable
+- Added `/api/live-transcript` endpoint alias for backward compatibility  
+- Enhanced error handling and resilience features
+- Fixed audio processing issues - transcripts now generate properly
 
-## API Endpoints
-
-The service supports **two equivalent endpoint patterns** for fetching transcript data:
-
-1. **Original**: `/api/enhanced-transcripts/:sessionId`
-2. **Alias (NEW)**: `/api/live-transcript/:sessionId`  **Use this one**
-
-Both endpoints return identical data. The `/api/live-transcript` alias was added for better naming clarity.
-
-## Session ID Format
-
-The session ID follows the pattern: `{botId}_transcript`
-
-Example: For bot `bot_1`, the session ID is `bot_1_transcript`
-
-## Complete API URL
-
+## Base URL
 ```
-https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/{sessionId}
+https://live-transcript-service-backend.dev.singularity-works.com
 ```
 
-Example:
-```
-https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/bot_1_transcript
-```
+## Primary Endpoint
 
-## Expected Behavior
+### Enhanced Transcripts Endpoint
+**URL:** `/api/enhanced-transcripts/:botId` or `/api/live-transcript/:botId`
 
-### 1. Session Creation
-- Sessions are created **immediately** when a bot joins a meeting
-- You will NOT get 404 errors anymore
-- Initial response will have empty transcript but populated metadata
+**Method:** `GET`
 
-### 2. Audio Processing Timeline
-- **0-10 seconds**: Session exists, transcript empty, metadata available
-- **10-30 seconds**: Audio starts processing (depends on when speaker starts talking)
-- **30+ seconds**: Transcript segments begin appearing
-- **60+ seconds**: AI summary becomes available
+**Description:** Returns combined raw transcripts, AI summary, and meeting metadata in a single response.
 
-### 3. Response Structure
+**Parameters:**
+- `botId` (required): The bot ID from the Meeting Bot backend
 
+**Response Format:**
 ```json
 {
   "success": true,
-  "sessionId": "bot_1_transcript",
-  "event_id": "meet_event_12345",  // May be null initially
+  "sessionId": "session_abc123",
+  "event_id": "google_meet_event_123",
   "meetingInfo": {
-    "title": "Team Meeting",
-    "url": "https://meet.google.com/abc-defg-hij",
-    "organizer": "user@example.com",
-    "scheduledStartTime": "2025-07-23T10:00:00Z",
-    "scheduledEndTime": "2025-07-23T11:00:00Z",
-    "actualStartTime": "2025-07-23T10:02:00Z",
-    "lastUpdated": "2025-07-23T10:15:00Z",
-    "duration": 780,  // seconds
-    "durationFormatted": "00:13:00",
-    "status": "active",
-    "recordingEnabled": false
+    "botId": "bot_123",
+    "meetingUrl": "https://meet.google.com/abc-defg-hij",
+    "startTime": "2025-07-23T10:00:00.000Z",
+    "duration": 3600
   },
   "participants": [
     {
+      "id": "participant_1",
       "name": "John Doe",
       "email": "john@example.com",
-      "role": "organizer",
-      "joinedAt": "2025-07-23T10:00:00Z",
-      "leftAt": null
+      "joinTime": "2025-07-23T10:00:00.000Z"
     }
   ],
   "transcript": {
     "segments": [
-      // Initially empty, then populated as audio is processed
       {
-        "speaker": "John Doe",
+        "speaker": "Speaker 1",
         "text": "Hello everyone, let's start the meeting.",
+        "timestamp": "00:00:05",
         "startTime": 5.0,
         "endTime": 8.5,
-        "confidence": 0.95,
-        "id": "bot_1_transcript_seg_1",
-        "sessionTime": 5000
+        "language": "en",
+        "confidence": 0.95
       }
     ],
-    "fullText": "",  // Concatenated text from all segments
-    "wordCount": 0,
-    "segmentCount": 0,
-    "detectedLanguage": null,  // Will be detected from first speech
-    "languageConfidence": 0,
-    "speakers": [],  // List of unique speaker names
-    "lastSegmentTime": 0
-  },
-  "aiSummary": {
-    // Initially contains placeholder, updated every ~60 seconds
-    "summary": {
-      "brief": "Waiting for more content to generate summary...",
-      "keyPoints": [],
-      "decisions": [],
-      "actionItems": [],
-      "topics": [],
-      "sentiment": "neutral",
-      "nextSteps": []
-    },
-    "insights": {
-      "participationRate": {},
-      "mostDiscussedTopics": [],
-      "meetingType": "unknown",
-      "effectiveness": "unknown"
-    },
     "metadata": {
-      "generatedAt": null,
-      "lastUpdated": null
+      "totalSegments": 45,
+      "duration": 3600,
+      "languages": ["en"],
+      "lastUpdated": "2025-07-23T11:00:00.000Z"
     }
   },
-  "botInfo": {
-    "botId": "bot_1",
-    "legacyBotId": "guest_bot_1753257649435_rbyt1d",
-    "botName": "Meeting Bot",
-    "status": "active"
-  },
-  "timestamps": {
-    "sessionStarted": "2025-07-23T10:02:00Z",
-    "lastTranscriptUpdate": "2025-07-23T10:15:00Z",
-    "lastSummaryUpdate": "2025-07-23T10:15:00Z",
-    "dataFetchedAt": "2025-07-23T10:15:30Z"
+  "aiSummary": {
+    "summary": "## Meeting Summary\n\nThe team discussed project updates...",
+    "keyPoints": [
+      "Project timeline reviewed",
+      "Budget approved for Q3"
+    ],
+    "actionItems": [
+      {
+        "task": "Submit design mockups",
+        "assignee": "John Doe",
+        "dueDate": "2025-07-30"
+      }
+    ],
+    "metadata": {
+      "generatedAt": "2025-07-23T11:00:00.000Z",
+      "model": "gemini-1.5-flash"
+    }
   }
 }
 ```
 
-## Implementation Guidelines
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Session not found",
+    "type": "NotFoundError"
+  },
+  "timestamp": "2025-07-23T10:00:00.000Z"
+}
+```
 
-### 1. Initial Load
+## Implementation Example
+
+### React Component
 ```javascript
-const fetchTranscript = async (sessionId) => {
-  try {
-    const response = await fetch(
-      `https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/${sessionId}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+import { useState, useEffect } from 'react';
+
+const LiveTranscriptModal = ({ botId, isOpen, onClose }) => {
+  const [transcriptData, setTranscriptData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (isOpen && botId) {
+      fetchTranscriptData();
     }
+  }, [isOpen, botId]);
+
+  const fetchTranscriptData = async () => {
+    setLoading(true);
+    setError(null);
     
-    const data = await response.json();
-    
-    if (data.success) {
-      // Handle successful response
-      updateUI(data);
-    } else {
-      // Handle API error
-      console.error('API Error:', data.error);
+    try {
+      const response = await fetch(
+        `https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/${botId}`
+      );
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error?.message || 'Failed to fetch transcript');
+      }
+      
+      setTranscriptData(data);
+    } catch (err) {
+      console.error('Live transcript API error:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Fetch error:', error);
-  }
-};
-```
+  };
 
-### 2. Polling for Updates
-```javascript
-// Poll every 5 seconds for updates
-const pollInterval = setInterval(() => {
-  fetchTranscript(sessionId);
-}, 5000);
+  if (!isOpen) return null;
 
-// Clean up on unmount
-onUnmount(() => {
-  clearInterval(pollInterval);
-});
-```
+  return (
+    <div className="modal">
+      <div className="modal-content">
+        <h2>Live Transcript</h2>
+        
+        {loading && <div>Loading transcript...</div>}
+        
+        {error && (
+          <div className="error">
+            Error: {error}
+          </div>
+        )}
+        
+        {transcriptData && (
+          <>
+            {/* Meeting Info */}
+            <div className="meeting-info">
+              <h3>Meeting Details</h3>
+              <p>Event ID: {transcriptData.event_id}</p>
+              <p>Duration: {transcriptData.meetingInfo.duration}s</p>
+              <p>Participants: {transcriptData.participants.length}</p>
+            </div>
 
-### 3. Real-time Updates (SSE)
-```javascript
-const connectToLiveStream = (sessionId) => {
-  const eventSource = new EventSource(
-    `https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/${sessionId}/live`
-  );
+            {/* Raw Transcript */}
+            <div className="transcript">
+              <h3>Transcript</h3>
+              {transcriptData.transcript.segments.map((segment, index) => (
+                <div key={index} className="segment">
+                  <span className="timestamp">{segment.timestamp}</span>
+                  <span className="speaker">{segment.speaker}:</span>
+                  <span className="text">{segment.text}</span>
+                </div>
+              ))}
+            </div>
 
-  eventSource.addEventListener('transcript_update', (event) => {
-    const update = JSON.parse(event.data);
-    // Add new transcript segment to UI
-    addTranscriptSegment(update);
-  });
-
-  eventSource.addEventListener('summary_update', (event) => {
-    const update = JSON.parse(event.data);
-    // Update AI summary section
-    updateSummary(update.summary);
-  });
-
-  eventSource.addEventListener('error', (event) => {
-    console.error('SSE Error:', event);
-    eventSource.close();
-  });
-
-  return eventSource;
-};
-```
-
-### 4. Handling Empty States
-```javascript
-const renderTranscript = (data) => {
-  if (data.transcript.segments.length === 0) {
-    return (
-      <div className="empty-state">
-        <p>Waiting for speech to begin...</p>
-        <p>Meeting started: {data.meetingInfo.durationFormatted} ago</p>
+            {/* AI Summary */}
+            <div className="ai-summary">
+              <h3>AI Summary</h3>
+              <div dangerouslySetInnerHTML={{ 
+                __html: transcriptData.aiSummary.summary 
+              }} />
+              
+              {transcriptData.aiSummary.actionItems?.length > 0 && (
+                <div className="action-items">
+                  <h4>Action Items</h4>
+                  <ul>
+                    {transcriptData.aiSummary.actionItems.map((item, index) => (
+                      <li key={index}>
+                        {item.task} - {item.assignee} (Due: {item.dueDate})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        
+        <button onClick={onClose}>Close</button>
       </div>
-    );
-  }
-  
-  // Render transcript segments
-  return data.transcript.segments.map(segment => (
-    <TranscriptSegment key={segment.id} segment={segment} />
-  ));
+    </div>
+  );
 };
+
+export default LiveTranscriptModal;
 ```
 
-## Important Notes
+## Real-time Updates with SSE
 
-1. **No Breaking Changes**: The API response structure remains unchanged from the original documentation
-2. **Session Availability**: Sessions are created immediately when bot joins, preventing 404 errors
-3. **Progressive Loading**: Transcript data loads progressively as audio is processed
-4. **AI Summary Timing**: Summaries generate after ~60 seconds of content, then update periodically
-5. **Language Detection**: Detected from actual speech, not meeting metadata
-
-## Error Handling
+For real-time transcript updates, use Server-Sent Events:
 
 ```javascript
-const handleApiResponse = (response) => {
-  if (!response.ok) {
-    switch (response.status) {
-      case 404:
-        // Session not found (rare now, but possible if bot hasn't joined yet)
-        console.error('Session not found. Bot may not have joined the meeting yet.');
-        break;
-      case 500:
-        // Server error
-        console.error('Server error. Please try again later.');
-        break;
-      case 503:
-        // Service unavailable
-        console.error('Service temporarily unavailable.');
-        break;
-      default:
-        console.error(`Unexpected error: ${response.status}`);
-    }
-  }
+const useTranscriptStream = (botId) => {
+  const [transcript, setTranscript] = useState([]);
+  
+  useEffect(() => {
+    if (!botId) return;
+    
+    const eventSource = new EventSource(
+      `https://live-transcript-service-backend.dev.singularity-works.com/api/stream/${botId}`
+    );
+    
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'transcript_segment') {
+        setTranscript(prev => [...prev, data.segment]);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE error:', error);
+      eventSource.close();
+    };
+    
+    return () => {
+      eventSource.close();
+    };
+  }, [botId]);
+  
+  return transcript;
 };
 ```
+
+## Error Handling Best Practices
+
+1. **Network Errors**: Implement retry logic with exponential backoff
+2. **404 Errors**: Session not found - bot may not be active
+3. **503 Errors**: Service temporarily unavailable - retry after delay
+4. **425 Errors**: Audio not ready yet - normal during meeting start
+
+## Rate Limiting
+
+The API implements rate limiting:
+- 100 requests per minute per IP
+- Use appropriate caching and debouncing in your frontend
+
+## Bot ID Reference
+
+Get the bot ID from the Meeting Bot backend's active pool endpoint:
+```
+https://meeting-bot-backend.dev.singularity-works.com/api/google-meet-guest/pool/active
+```
+
+Response includes:
+```json
+{
+  "bots": [
+    {
+      "poolBotId": "bot_123",
+      "legacyBotId": "legacy_bot_456",
+      "meetingUrl": "https://meet.google.com/abc-defg-hij",
+      "status": "in_meeting"
+    }
+  ]
+}
+```
+
+Use the `poolBotId` value when calling the transcript API.
 
 ## Testing
 
-1. Use the debug endpoint to verify bot status:
-   ```
-   https://live-transcript-service-backend.dev.singularity-works.com/api/debug/transcript-sessions
-   ```
-
-2. Test with a known active session:
-   ```
-   https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/bot_1_transcript
-   ```
-
-## Migration from Previous Implementation
-
-If you were using `/api/enhanced-transcripts`, simply update your base path:
-
-```javascript
-// Old
-const url = `${BASE_URL}/api/enhanced-transcripts/${sessionId}`;
-
-// New (recommended)
-const url = `${BASE_URL}/api/live-transcript/${sessionId}`;
-```
-
-Both endpoints work identically, but `/api/live-transcript` is the preferred naming.
+Test endpoints available for development:
+- `/api/test/transcription/:botId` - Test transcription for a specific bot
+- `/api/health` - Check service health
 
 ## Support
 
 For issues or questions:
-- Check service health: https://live-transcript-service-backend.dev.singularity-works.com/health
-- View active sessions: https://live-transcript-service-backend.dev.singularity-works.com/api/debug/transcript-sessions
-- API documentation: See API_ENDPOINTS.md in the repository
+- Check service health at `/api/health`
+- Review logs for error details
+- Contact the backend team with session ID and timestamp
