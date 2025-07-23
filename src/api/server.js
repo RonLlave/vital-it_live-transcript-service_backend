@@ -83,6 +83,7 @@ function createServer() {
   // Test routes (remove in production)
   app.use('/test-supabase', testSupabaseRoutes);
   app.use('/api/debug', require('./routes/debug'));
+  app.use('/api/test', require('./routes/test'));
 
   // Root endpoint
   app.get('/', (req, res) => {

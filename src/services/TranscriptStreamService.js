@@ -349,7 +349,7 @@ class TranscriptStreamService extends EventEmitter {
           meetingUrl: session.meetingUrl,
           startedAt: session.startedAt,
           duration: session.duration,
-          durationFormatted: this.formatDuration(session.duration),
+          durationFormatted: TranscriptStreamService.formatDuration(session.duration),
           transcriptLength: session.segments.length,
           lastUpdated: session.lastUpdated,
           status: session.status,
@@ -390,7 +390,7 @@ class TranscriptStreamService extends EventEmitter {
         startedAt: session.startedAt,
         lastUpdated: session.lastUpdated,
         status: session.status,
-        durationFormatted: this.formatDuration(session.duration)
+        durationFormatted: TranscriptStreamService.formatDuration(session.duration)
       }
     };
   }
@@ -489,7 +489,7 @@ class TranscriptStreamService extends EventEmitter {
       ...this.stats,
       sessions: Array.from(this.transcriptSessions.values()).map(session => ({
         sessionId: session.sessionId,
-        duration: this.formatDuration(session.duration),
+        duration: TranscriptStreamService.formatDuration(session.duration),
         wordCount: session.wordCount,
         language: session.detectedLanguage,
         speakers: session.speakers.size
