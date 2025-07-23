@@ -8,21 +8,31 @@ const GeminiTranscriptionService = require('../../services/GeminiTranscriptionSe
 const MeetingMetadataService = require('../../services/MeetingMetadataService');
 
 /**
- * Get enhanced transcript with AI summary and meeting metadata
- * GET /api/enhanced-transcripts/:sessionId
+ * Get enhanced transcript by event ID
+ * GET /api/enhanced-transcripts/:eventId
  */
-router.get('/:sessionId', asyncHandler(async (req, res) => {
-  const { sessionId } = req.params;
+router.get('/:eventId', asyncHandler(async (req, res) => {
+  const { eventId } = req.params;
   const { refresh = false } = req.query; // Force refresh AI summary
   
-  if (!sessionId) {
-    throw new ValidationError('Session ID is required', 'sessionId');
+  if (!eventId) {
+    throw new ValidationError('Event ID is required', 'eventId');
   }
 
-  // Get base transcript
-  const session = TranscriptStreamService.transcriptSessions.get(sessionId);
+  // Find session by event_id
+  let session = null;
+  let sessionId = null;
+  
+  for (const [id, sess] of TranscriptStreamService.transcriptSessions.entries()) {
+    if (sess.metadata?.event_id === eventId) {
+      session = sess;
+      sessionId = id;
+      break;
+    }
+  }
+  
   if (!session) {
-    throw new NotFoundError(`Session ${sessionId}`);
+    throw new NotFoundError(`No active transcript found for event ${eventId}`);
   }
 
   // Fetch meeting metadata if not already cached

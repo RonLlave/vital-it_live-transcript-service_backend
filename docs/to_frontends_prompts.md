@@ -14,17 +14,60 @@ The Live Transcript Service provides real-time transcription and AI summaries fo
 https://live-transcript-service-backend.dev.singularity-works.com
 ```
 
-## Primary Endpoint
+## Primary Endpoints
 
-### Enhanced Transcripts Endpoint
-**URL:** `/api/enhanced-transcripts/:botId` or `/api/live-transcript/:botId`
+### 1. Enhanced Transcripts Endpoint (by Event ID)
+**URL:** `/api/enhanced-transcripts/:eventId` or `/api/live-transcript/:eventId`
 
 **Method:** `GET`
 
 **Description:** Returns combined raw transcripts, AI summary, and meeting metadata in a single response.
 
 **Parameters:**
-- `botId` (required): The bot ID from the Meeting Bot backend
+- `eventId` (required): The Google Meet event ID (scheduled meeting ID)
+
+### 2. List Active Transcript Sessions
+**URL:** `/api/transcript-sessions`
+
+**Method:** `GET`
+
+**Description:** Lists all active transcript sessions with their event IDs and status.
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "sessions": [
+    {
+      "sessionId": "bot_1_transcript",
+      "event_id": "google_meet_event_123",
+      "botId": "bot_1",
+      "meetingUrl": "https://meet.google.com/abc-defg-hij",
+      "status": "active",
+      "startedAt": "2025-07-23T10:00:00.000Z",
+      "lastUpdated": "2025-07-23T10:15:00.000Z",
+      "duration": 900,
+      "segmentCount": 45,
+      "wordCount": 1250,
+      "speakerCount": 3,
+      "hasAiSummary": true,
+      "participants": 5,
+      "detectedLanguage": "en"
+    }
+  ]
+}
+```
+
+### 3. Get Session Info by Event ID
+**URL:** `/api/transcript-sessions/event/:eventId`
+
+**Method:** `GET`
+
+**Description:** Get transcript session information for a specific event ID.
+
+**Parameters:**
+- `eventId` (required): The Google Meet event ID
 
 **Response Format:**
 ```json
@@ -120,8 +163,12 @@ const LiveTranscriptModal = ({ botId, isOpen, onClose }) => {
     setError(null);
     
     try {
+      // First, get the event ID if you only have botId
+      // Or use the event ID directly if you already have it
+      const eventId = 'your_event_id'; // Get this from your meeting data
+      
       const response = await fetch(
-        `https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/${botId}`
+        `https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/${eventId}`
       );
       
       const data = await response.json();
@@ -137,6 +184,15 @@ const LiveTranscriptModal = ({ botId, isOpen, onClose }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Or fetch all active sessions first
+  const fetchActiveSessions = async () => {
+    const response = await fetch(
+      'https://live-transcript-service-backend.dev.singularity-works.com/api/transcript-sessions'
+    );
+    const data = await response.json();
+    return data.sessions;
   };
 
   if (!isOpen) return null;
