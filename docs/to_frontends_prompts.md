@@ -96,10 +96,14 @@ https://live-transcript-service-backend.dev.singularity-works.com
         "speaker": "Speaker 1",
         "text": "Hello everyone, let's start the meeting.",
         "timestamp": "00:00:05",
+        "startTimestamp": "00:00:05",
+        "endTimestamp": "00:00:08",
         "startTime": 5.0,
         "endTime": 8.5,
         "language": "en",
-        "confidence": 0.95
+        "confidence": 0.95,
+        "id": "session_abc123_seg_1",
+        "sessionTime": 5000
       }
     ],
     "metadata": {
@@ -236,10 +240,17 @@ const LiveTranscriptModal = ({ botId, isOpen, onClose }) => {
             <div className="transcript">
               <h3>Transcript</h3>
               {transcriptData.transcript.segments.map((segment, index) => (
-                <div key={index} className="segment">
-                  <span className="timestamp">{segment.timestamp}</span>
+                <div key={segment.id} className="segment">
+                  <span className="time-range">
+                    {segment.startTimestamp} - {segment.endTimestamp}
+                  </span>
                   <span className="speaker">{segment.speaker}:</span>
                   <span className="text">{segment.text}</span>
+                  {segment.confidence < 0.8 && (
+                    <span className="low-confidence" title={`Confidence: ${(segment.confidence * 100).toFixed(0)}%`}>
+                      ⚠️
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

@@ -280,7 +280,11 @@ class TranscriptStreamService extends EventEmitter {
         const segmentWithId = {
           ...segment,
           id: `${sessionId}_seg_${session.segments.length + 1}`,
-          sessionTime: Date.now() - session.startedAt.getTime()
+          sessionTime: Date.now() - session.startedAt.getTime(),
+          // Add formatted timestamps
+          timestamp: formatDuration(segment.startTime || 0),
+          startTimestamp: formatDuration(segment.startTime || 0),
+          endTimestamp: formatDuration(segment.endTime || 0)
         };
         
         session.segments.push(segmentWithId);
