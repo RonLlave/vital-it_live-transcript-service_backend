@@ -1,37 +1,86 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  live-transcript-service:
-    build: .
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        - NODE_ENV=production
     container_name: live-transcript-service
-    ports:
-      - "3003:3003"
-    environment:
-      - NODE_ENV=production
-    env_file:
-      - .env
     restart: unless-stopped
+    ports:
+      - "${PORT:-3003}:3003"
+    environment:
+      # Server Configuration
+      - NODE_ENV=production
+      - PORT=3003
+      - SERVICE_NAME=live-transcript-service
+
+      # Meeting Bot API Configuration
+      - MEETING_BOT_API_URL=${MEETING_BOT_API_URL}
+      - MEETING_BOT_API_KEY=${MEETING_BOT_API_KEY}
+
+      # Google Gemini API Configuration
+      - GOOGLE_GEMINI_API_KEY=${GOOGLE_GEMINI_API_KEY}
+      - GOOGLE_GEMINI_MODEL=${GOOGLE_GEMINI_MODEL:-gemini-1.5-flash}
+      - GEMINI_AUDIO_SAMPLE_RATE=${GEMINI_AUDIO_SAMPLE_RATE:-16000}
+
+      # Audio Processing Configuration
+      - AUDIO_FETCH_INTERVAL=${AUDIO_FETCH_INTERVAL:-5000}
+      - AUDIO_BUFFER_SIZE=${AUDIO_BUFFER_SIZE:-30}
+      - AUDIO_FORMAT=${AUDIO_FORMAT:-WAV}
+
+      # Transcript Configuration
+      - TRANSCRIPT_LANGUAGE=${TRANSCRIPT_LANGUAGE:-auto}
+      - ENABLE_SPEAKER_DIARIZATION=${ENABLE_SPEAKER_DIARIZATION:-true}
+      - MAX_TRANSCRIPT_LENGTH=${MAX_TRANSCRIPT_LENGTH:-500000}
+      - TRANSCRIPT_LANGUAGE_HINTS=${TRANSCRIPT_LANGUAGE_HINTS:-en,de,es,fr,it,pt,nl,pl}
+
+      # Service Configuration
+      - ENABLE_HEALTH_CHECKS=${ENABLE_HEALTH_CHECKS:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"]
+      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    volumes:
-      - ./logs:/app/logs
-    labels:
-      - "coolify.managed=true"
-      - "coolify.type=application"
-      - "coolify.name=live-transcript-service"
-      - "coolify.autodeploy=true"
-    networks:
-      - transcript-network
+
+    # Resource limits (matching Meeting Bot API project)
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 20G
+        reservations:
+          cpus: "2"
+          memory: 8G
+
+    # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
+    # Volume for temporary audio files
+    volumes:
+      - audio_temp:/app/temp
+
+    # Network configuration
+    networks:
+      - transcript_network
+
+# Volumes
+volumes:
+  audio_temp:
+    driver: local
+
+# Networks
 networks:
-  transcript-network:
+  transcript_network:
     driver: bridge

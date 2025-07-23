@@ -1,7 +1,11 @@
-FROM node:18-alpine
+# Production Dockerfile optimized for Coolify
+FROM node:18-alpine AS base
 
-# Install dependencies for audio processing
-RUN apk add --no-cache ffmpeg
+# Install dependencies needed for audio processing and health checks
+RUN apk add --no-cache \
+    ffmpeg \
+    curl \
+    tini
 
 # Create app directory
 WORKDIR /app
@@ -10,20 +14,35 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies
+FROM base AS deps
 RUN npm ci --only=production
 
-# Copy application files
+# Build stage (if needed for TypeScript or build steps)
+FROM base AS build
+COPY package*.json ./
+RUN npm ci
 COPY . .
+# Add any build commands here if needed
+# RUN npm run build
 
-# Create logs directory
-RUN mkdir -p logs
+# Production stage
+FROM base AS runtime
+
+# Use tini for proper signal handling
+ENTRYPOINT ["/sbin/tini", "--"]
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
 
-# Change ownership
-RUN chown -R nodejs:nodejs /app
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy application code
+COPY --chown=nodejs:nodejs . .
+
+# Create necessary directories
+RUN mkdir -p logs temp && chown -R nodejs:nodejs logs temp
 
 # Switch to non-root user
 USER nodejs
@@ -33,7 +52,7 @@ EXPOSE 3003
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
+    CMD curl -f http://localhost:3003/health || exit 1
 
-# Start the application
+# Start command
 CMD ["node", "src/index.js"]

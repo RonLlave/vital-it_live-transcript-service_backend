@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const Logger = require('../utils/Logger');
 const { errorHandler } = require('../utils/ErrorHandler');
@@ -18,6 +20,12 @@ function createServer() {
 
   // Trust proxy headers (for deployment behind reverse proxy)
   app.set('trust proxy', true);
+
+  // Security middleware
+  app.use(helmet());
+  
+  // Compression middleware
+  app.use(compression());
 
   // Middleware for parsing JSON
   app.use(express.json({ limit: '10mb' }));

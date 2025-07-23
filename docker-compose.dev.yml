@@ -1,11 +1,13 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  live-transcript-service-dev:
+  app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
+      target: base
     container_name: live-transcript-service-dev
+    command: npm run dev
     ports:
       - "3003:3003"
     environment:
@@ -13,26 +15,12 @@ services:
     env_file:
       - .env
     volumes:
-      - ./src:/app/src
-      - ./logs:/app/logs
-      - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json
+      - .:/app
       - /app/node_modules
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3003/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     networks:
-      - transcript-network-dev
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      - transcript_network
 
 networks:
-  transcript-network-dev:
+  transcript_network:
     driver: bridge

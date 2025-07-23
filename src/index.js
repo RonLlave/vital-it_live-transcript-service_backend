@@ -87,30 +87,30 @@ async function startServer() {
  * @param {http.Server} server - HTTP server instance
  */
 async function gracefulShutdown(server) {
-  Logger.info('Received shutdown signal, starting graceful shutdown...');
+  Logger.info('SIGTERM signal received: closing HTTP server');
 
   // Stop accepting new connections
   server.close(() => {
     Logger.info('HTTP server closed');
+    
+    try {
+      // Stop services
+      BotPoolMonitor.stop();
+      Logger.info('✓ Bot Pool Monitor stopped');
+
+      AudioFetchService.stop();
+      Logger.info('✓ Audio Fetch Service stopped');
+
+      TranscriptStreamService.stop();
+      Logger.info('✓ Transcript Stream Service stopped');
+
+      Logger.info('Graceful shutdown completed');
+      process.exit(0);
+    } catch (error) {
+      Logger.error('Error during shutdown:', error);
+      process.exit(1);
+    }
   });
-
-  try {
-    // Stop services
-    BotPoolMonitor.stop();
-    Logger.info('✓ Bot Pool Monitor stopped');
-
-    AudioFetchService.stop();
-    Logger.info('✓ Audio Fetch Service stopped');
-
-    TranscriptStreamService.stop();
-    Logger.info('✓ Transcript Stream Service stopped');
-
-    Logger.info('Graceful shutdown completed');
-    process.exit(0);
-  } catch (error) {
-    Logger.error('Error during shutdown:', error);
-    process.exit(1);
-  }
 
   // Force exit after 30 seconds
   setTimeout(() => {
