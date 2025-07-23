@@ -21,7 +21,7 @@ This single endpoint provides everything needed for the frontend:
 {
   "success": true,
   "sessionId": "bot_1_transcript",
-  "eventId": "meet_event_12345",  // Google Meet event ID
+  "event_id": "meet_event_12345",  // Google Meet event ID
   "meetingInfo": {
     "title": "Weekly Team Standup",
     "url": "https://meet.google.com/abc-defg-hij",

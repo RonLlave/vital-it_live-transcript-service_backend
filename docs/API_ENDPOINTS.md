@@ -481,7 +481,7 @@ Get complete transcript with AI summary and meeting metadata - **PRIMARY ENDPOIN
 {
   "success": true,
   "sessionId": "bot_1_transcript",
-  "eventId": "meet_event_12345",
+  "event_id": "meet_event_12345",
   "meetingInfo": {
     "title": "Weekly Team Standup",
     "url": "https://meet.google.com/abc-defg-hij",
@@ -604,7 +604,7 @@ List all active enhanced transcript sessions.
       "sessionId": "bot_1_transcript",
       "botId": "bot_1",
       "meetingUrl": "https://meet.google.com/abc-defg-hij",
-      "eventId": "meet_event_12345",
+      "event_id": "meet_event_12345",
       "meetingTitle": "Weekly Team Standup",
       "participants": 5,
       "duration": 1234,
@@ -642,7 +642,7 @@ Enhanced SSE endpoint with meeting metadata and summary updates.
 **Initial Connection:**
 ```
 event: connected
-data: {"sessionId":"bot_1_transcript","eventId":"meet_event_12345","meetingTitle":"Weekly Team Standup","participants":[{"name":"John Doe"}],"currentDuration":1234,"wordCount":4567,"hasSummary":true}
+data: {"sessionId":"bot_1_transcript","event_id":"meet_event_12345","meetingTitle":"Weekly Team Standup","participants":[{"name":"John Doe"}],"currentDuration":1234,"wordCount":4567,"hasSummary":true}
 ```
 
 **Summary Updates:**

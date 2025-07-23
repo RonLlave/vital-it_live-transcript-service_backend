@@ -35,7 +35,7 @@ router.get('/:sessionId', asyncHandler(async (req, res) => {
       Logger.error('Failed to fetch meeting metadata:', error);
       session.metadata = {
         error: 'Failed to fetch meeting metadata',
-        eventId: null,
+        event_id: null,
         participants: []
       };
     }
@@ -61,7 +61,7 @@ router.get('/:sessionId', asyncHandler(async (req, res) => {
         transcript,
         {
           participants: session.metadata.participants?.map(p => p.name) || [],
-          eventId: session.metadata.eventId,
+          event_id: session.metadata.event_id,
           meetingTitle: session.metadata.meetingTitle
         }
       );
@@ -87,7 +87,7 @@ router.get('/:sessionId', asyncHandler(async (req, res) => {
   const enhancedTranscript = {
     success: true,
     sessionId: session.sessionId,
-    eventId: session.metadata?.eventId || null,
+    event_id: session.metadata?.event_id || null,
     meetingInfo: {
       title: session.metadata?.meetingTitle || 'Untitled Meeting',
       url: session.meetingUrl,
@@ -166,7 +166,7 @@ router.get('/active/list', asyncHandler(async (req, res) => {
     
     return {
       ...session,
-      eventId: fullSession?.metadata?.eventId || null,
+      event_id: fullSession?.metadata?.event_id || null,
       meetingTitle: fullSession?.metadata?.meetingTitle || 'Untitled Meeting',
       participants: fullSession?.metadata?.participants?.length || 0,
       hasSummary: !!fullSession?.aiSummary,
@@ -223,7 +223,7 @@ router.post('/:sessionId/update-summary', asyncHandler(async (req, res) => {
       transcript,
       {
         participants: session.metadata.participants?.map(p => p.name) || [],
-        eventId: session.metadata.eventId,
+        event_id: session.metadata.event_id,
         meetingTitle: session.metadata.meetingTitle
       }
     );
@@ -276,7 +276,7 @@ router.get('/:sessionId/live', asyncHandler(async (req, res) => {
   // Send initial enhanced data
   const initialData = {
     sessionId,
-    eventId: session.metadata?.eventId || null,
+    event_id: session.metadata?.event_id || null,
     meetingTitle: session.metadata?.meetingTitle || 'Untitled Meeting',
     participants: session.metadata?.participants || [],
     currentDuration: session.duration,

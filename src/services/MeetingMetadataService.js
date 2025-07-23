@@ -48,7 +48,7 @@ class MeetingMetadataService {
       
       // Extract meeting information
       const metadata = {
-        eventId: botDetails.eventId || botDetails.meetingId || null,
+        event_id: botDetails.event_id || botDetails.eventId || botDetails.meetingId || null,
         meetingUrl: botDetails.meetingUrl || botDetails.meeting_url || null,
         meetingTitle: botDetails.meetingTitle || botDetails.meeting_title || 'Untitled Meeting',
         participants: await this.extractParticipants(botDetails),
@@ -79,7 +79,7 @@ class MeetingMetadataService {
       
       // Return minimal metadata on error
       return {
-        eventId: null,
+        event_id: null,
         meetingUrl: null,
         meetingTitle: 'Unknown Meeting',
         participants: [],
