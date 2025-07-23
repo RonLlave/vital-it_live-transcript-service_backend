@@ -13,9 +13,13 @@ router.get('/', asyncHandler(async (req, res) => {
   
   // Get all active sessions
   for (const [sessionId, session] of TranscriptStreamService.transcriptSessions.entries()) {
+    const eventId = session.metadata?.event_id || null;
+    const baseUrl = 'https://live-transcript-service-backend.dev.singularity-works.com';
+    
     sessions.push({
       sessionId,
-      event_id: session.metadata?.event_id || null,
+      event_id: eventId,
+      live_transcript_url: eventId ? `${baseUrl}/api/live-transcript/${eventId}` : null,
       botId: session.botId,
       meetingUrl: session.meetingUrl,
       status: session.status,
@@ -53,9 +57,12 @@ router.get('/event/:eventId', asyncHandler(async (req, res) => {
   
   for (const [sessionId, session] of TranscriptStreamService.transcriptSessions.entries()) {
     if (session.metadata?.event_id === eventId) {
+      const baseUrl = 'https://live-transcript-service-backend.dev.singularity-works.com';
+      
       sessionInfo = {
         sessionId,
         event_id: session.metadata.event_id,
+        live_transcript_url: `${baseUrl}/api/live-transcript/${eventId}`,
         botId: session.botId,
         meetingUrl: session.meetingUrl,
         status: session.status,

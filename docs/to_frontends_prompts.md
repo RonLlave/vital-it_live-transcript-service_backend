@@ -42,6 +42,7 @@ https://live-transcript-service-backend.dev.singularity-works.com
     {
       "sessionId": "bot_1_transcript",
       "event_id": "google_meet_event_123",
+      "live_transcript_url": "https://live-transcript-service-backend.dev.singularity-works.com/api/live-transcript/google_meet_event_123",
       "botId": "bot_1",
       "meetingUrl": "https://meet.google.com/abc-defg-hij",
       "status": "active",
@@ -192,8 +193,19 @@ const LiveTranscriptModal = ({ botId, isOpen, onClose }) => {
       'https://live-transcript-service-backend.dev.singularity-works.com/api/transcript-sessions'
     );
     const data = await response.json();
+    
+    // Each session now includes the complete live_transcript_url
+    data.sessions.forEach(session => {
+      console.log(`Event ${session.event_id}: ${session.live_transcript_url}`);
+    });
+    
     return data.sessions;
   };
+  
+  // Example: Direct access to transcript using the URL from sessions list
+  const session = await fetchActiveSessions();
+  const transcriptUrl = session[0].live_transcript_url;
+  const transcriptResponse = await fetch(transcriptUrl);
 
   if (!isOpen) return null;
 
