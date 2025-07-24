@@ -133,6 +133,15 @@ class GeminiTranscriptionService {
       Logger.debug(`Parsing Gemini response...`);
       const transcription = this.parseTranscriptionResponse(result);
       
+      // Post-process segments for single participant meetings
+      if (participants && participants.length === 1) {
+        const participantName = participants[0].name || participants[0].email || 'Unknown';
+        transcription.segments = this.normalizeSingleParticipantSpeakers(
+          transcription.segments, 
+          participantName
+        );
+      }
+      
       // Add metadata
       transcription.metadata = {
         botId,
@@ -209,17 +218,25 @@ class GeminiTranscriptionService {
 }`;
 
     if (this.enableSpeakerDiarization) {
-      prompt += '\n4. Identify different speakers based on voice characteristics.';
-      
       // Add participant information if available
       if (participants && participants.length > 0) {
         const participantNames = participants
           .map(p => p.name || p.email?.split('@')[0] || 'Unknown')
           .filter(name => name !== 'Unknown');
         
-        if (participantNames.length > 0) {
-          prompt += `\n5. Meeting participants include: ${participantNames.join(', ')}. Try to match voices to these participants when possible, but use "Speaker 1", "Speaker 2" etc. if uncertain.`;
+        if (participantNames.length === 1) {
+          // Single participant - assume all speech is from them
+          prompt += `\n4. This is a single-participant meeting with ${participantNames[0]}. Label all speech segments as "${participantNames[0]}" unless you detect clearly different voices (such as system sounds or other unexpected speakers).`;
+        } else if (participantNames.length > 1) {
+          // Multiple participants
+          prompt += `\n4. Identify different speakers based on voice characteristics.`;
+          prompt += `\n5. Meeting participants include: ${participantNames.join(', ')}. Try to match voices to these participants when possible. Use their exact names when you can identify them. Only use "Speaker 1", "Speaker 2" etc. for unidentified voices.`;
+        } else {
+          // No participant info
+          prompt += '\n4. Identify different speakers and label them as "Speaker 1", "Speaker 2", etc.';
         }
+      } else {
+        prompt += '\n4. Identify different speakers and label them as "Speaker 1", "Speaker 2", etc.';
       }
     }
 
@@ -603,6 +620,32 @@ IMPORTANT: Return ONLY valid JSON, no additional text or markdown.`;
     } else {
       return `${secs}s`;
     }
+  }
+
+  /**
+   * Normalize speaker names for single participant meetings
+   * @param {Array} segments - Transcript segments
+   * @param {string} participantName - The single participant's name
+   * @returns {Array} Normalized segments
+   */
+  normalizeSingleParticipantSpeakers(segments, participantName) {
+    if (!segments || segments.length === 0) return segments;
+    
+    return segments.map(segment => {
+      // Replace generic labels with the actual participant name
+      if (segment.speaker === 'Unknown' || 
+          segment.speaker === 'Speaker 1' || 
+          segment.speaker === 'Speaker' ||
+          segment.speaker?.startsWith('Speaker ')) {
+        return {
+          ...segment,
+          speaker: participantName
+        };
+      }
+      
+      // Keep the speaker name if it already matches or is specific
+      return segment;
+    });
   }
 }
 
