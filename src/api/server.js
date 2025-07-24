@@ -85,6 +85,7 @@ function createServer() {
   app.use('/api/enhanced-transcripts', enhancedTranscriptRoutes);
   app.use('/api/live-transcript', enhancedTranscriptRoutes); // Alias for frontend compatibility
   app.use('/api/transcript-sessions', require('./routes/transcript-sessions'));
+  app.use('/api/transcribe', require('./routes/transcribe'));
   
   // Test routes (remove in production)
   app.use('/test-supabase', testSupabaseRoutes);

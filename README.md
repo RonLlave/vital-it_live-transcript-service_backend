@@ -207,6 +207,16 @@ Stop transcription for a session.
 Download transcript in various formats.
 - Query params: `format=txt|json|srt`
 
+### Frontend Transcription Endpoints
+
+These endpoints allow frontend to directly request transcriptions:
+
+- `POST /api/transcribe` - Transcribe audio and get both raw transcript and AI summary
+- `POST /api/transcribe/raw` - Get only raw transcript (faster response)
+- `POST /api/transcribe/summary` - Generate AI summary from transcript segments
+
+See [Frontend Transcribe API Documentation](docs/frontend-transcribe-api.md) for detailed usage.
+
 ### Debug Endpoints
 
 These endpoints are available for debugging and development:
