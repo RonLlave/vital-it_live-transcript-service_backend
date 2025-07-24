@@ -211,11 +211,13 @@ Download transcript in various formats.
 
 ### Frontend Transcription Endpoints
 
-These endpoints allow frontend to directly request transcriptions:
+These endpoints allow frontend to directly request transcriptions with consistent input format:
 
 - `POST /api/transcribe` - Transcribe audio and get both raw transcript and AI summary
 - `POST /api/transcribe/raw` - Get only raw transcript (faster response)
-- `POST /api/transcribe/summary` - Generate AI summary from transcript segments
+- `POST /api/transcribe/summary` - Get only AI summary (internally transcribes first)
+
+All endpoints accept the same request format with audio URL and participants list.
 
 See [Frontend Transcribe API Documentation](docs/frontend-transcribe-api.md) for detailed usage.
 

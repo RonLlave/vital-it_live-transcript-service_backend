@@ -245,6 +245,11 @@ To re-enable automatic mode, uncomment the disabled code in:
 - For single participant meetings, all segments use the participant's name
 - For multiple participants, fuzzy matching and heuristics are applied
 
+### API Consistency
+- All three transcribe endpoints now accept the same input format
+- `/api/transcribe/summary` now accepts audio URL instead of segments
+- Consistent parameter structure across raw, full, and summary endpoints
+
 ## Commands Reference
 
 ```bash

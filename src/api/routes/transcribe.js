@@ -180,42 +180,80 @@ router.post('/raw', asyncHandler(async (req, res) => {
 }));
 
 /**
- * Generate AI summary from existing transcript
+ * Generate AI summary from audio URL
  * POST /api/transcribe/summary
  */
 router.post('/summary', asyncHandler(async (req, res) => {
   const { 
-    segments = [],
+    audioUrl,
+    participants = [],
     eventId,
-    meetingTitle = 'Meeting'
+    meetingUrl,
+    meetingTitle = 'Meeting',
+    botId = 'frontend_request'
   } = req.body;
 
-  if (!segments || segments.length === 0) {
-    throw new ValidationError('Transcript segments are required', 'segments');
+  if (!audioUrl) {
+    throw new ValidationError('Audio URL is required', 'audioUrl');
   }
 
   Logger.info('Frontend AI summary request', {
-    segmentCount: segments.length,
+    audioUrl,
+    participantCount: participants.length,
     eventId
   });
 
   try {
-    // Prepare transcript object from segments
+    // Fetch audio from URL
+    const audioResponse = await axios.get(audioUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      maxContentLength: 200 * 1024 * 1024 // 200MB max
+    });
+
+    const audioBuffer = Buffer.from(audioResponse.data);
+    
+    Logger.info('Audio fetched for summary', {
+      size: audioBuffer.length,
+      sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2)
+    });
+
+    // First transcribe the audio
+    const transcription = await GeminiTranscriptionService.transcribeAudio(
+      audioBuffer,
+      {
+        botId,
+        meetingUrl,
+        participants,
+        isIncremental: false
+      }
+    );
+
+    // Format segments with timestamps
+    const formattedSegments = (transcription.segments || []).map((segment, index) => ({
+      ...segment,
+      id: `segment_${index + 1}`,
+      timestamp: formatDuration(segment.startTime || 0),
+      startTimestamp: formatDuration(segment.startTime || 0),
+      endTimestamp: formatDuration(segment.endTime || 0)
+    }));
+
+    // Prepare transcript object for summary
     const transcript = {
-      segments: segments,
-      fullText: segments.map(s => `${s.speaker}: ${s.text}`).join('\n'),
-      wordCount: segments.reduce((count, s) => count + (s.text?.split(/\s+/).length || 0), 0),
-      duration: segments.length > 0 ? segments[segments.length - 1].endTime || 0 : 0,
-      detectedLanguage: 'en' // Could be detected from segments if needed
+      segments: formattedSegments,
+      fullText: transcription.fullText || formattedSegments.map(s => `${s.speaker}: ${s.text}`).join('\n'),
+      wordCount: transcription.wordCount || 0,
+      duration: transcription.metadata?.duration || 0,
+      detectedLanguage: transcription.detectedLanguage
     };
 
-    // Extract unique speakers as participants
-    const speakers = [...new Set(segments.map(s => s.speaker).filter(s => s && s !== 'Unknown'))];
+    // Extract speaker names from participants
+    const speakerNames = participants.map(p => p.name || p.email || 'Unknown');
     
     // Generate AI summary
     const aiSummary = await GeminiTranscriptionService.generateSummary(transcript, {
       meetingTitle,
-      participants: speakers,
+      participants: speakerNames,
       includeActionItems: true
     });
 
@@ -234,9 +272,10 @@ router.post('/summary', asyncHandler(async (req, res) => {
         metadata: {
           generatedAt: new Date().toISOString(),
           model: 'gemini-1.5-flash',
-          segmentCount: segments.length,
+          segmentCount: formattedSegments.length,
           duration: transcript.duration,
-          wordCount: transcript.wordCount
+          wordCount: transcript.wordCount,
+          detectedLanguage: transcript.detectedLanguage
         }
       }
     });
@@ -246,7 +285,7 @@ router.post('/summary', asyncHandler(async (req, res) => {
       error: error.message,
       stack: error.stack,
       eventId,
-      segmentCount: segments.length
+      audioUrl
     });
     
     // Provide a more specific error response

@@ -124,21 +124,28 @@ https://live-transcript-service-backend.dev.singularity-works.com
 ### 3. AI Summary Only
 **Endpoint:** `POST /api/transcribe/summary`
 
-**Description:** Generates AI summary from provided transcript segments.
+**Description:** Transcribes audio and generates only the AI summary (without returning raw transcript).
 
 **Request Body:**
 ```json
 {
-  "segments": [
+  "audioUrl": "https://meeting-bot-backend.dev.singularity-works.com/api/google-meet-guest/audio-blob/guest_bot_123",
+  "participants": [
     {
-      "speaker": "John Doe",
-      "text": "Hello everyone, let's start the meeting.",
-      "startTime": 5.0,
-      "endTime": 8.5
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "participant"
+    },
+    {
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "role": "participant"
     }
   ],
   "eventId": "google_meet_event_123",
-  "meetingTitle": "Q3 Planning Meeting" // Optional
+  "meetingUrl": "https://meet.google.com/abc-defg-hij",
+  "meetingTitle": "Q3 Planning Meeting", // Optional
+  "botId": "bot_1" // Optional
 }
 ```
 
@@ -260,6 +267,25 @@ class TranscriptionService {
         audioUrl,
         participants,
         eventId
+      })
+    });
+
+    return response.json();
+  }
+
+  // Get only AI summary
+  async getAISummary(audioUrl, participants, eventId, meetingTitle) {
+    const response = await fetch(`${this.baseUrl}/api/transcribe/summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        audioUrl,
+        participants,
+        eventId,
+        meetingTitle: meetingTitle || 'Meeting',
+        meetingUrl: window.location.href
       })
     });
 
