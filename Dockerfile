@@ -49,19 +49,6 @@ RUN mkdir -p logs temp data && \
     chown -R nodejs:nodejs logs temp data && \
     chmod -R 755 logs temp data
 
-# Create startup script for better debugging
-RUN echo '#!/bin/sh\n\
-set -e\n\
-echo "Starting Live Transcript Service..."\n\
-echo "Node.js version: $(node --version)"\n\
-echo "Memory limit: ${NODE_OPTIONS}"\n\
-echo "Available memory: $(free -m | grep Mem | awk '"'"'{print $2}'"'"') MB"\n\
-echo "CPU cores: $(nproc)"\n\
-\n\
-# Start the application with error handling\n\
-exec node src/index.js\n\
-' > /app/start.sh && chmod +x /app/start.sh
-
 # Switch to non-root user
 USER nodejs
 
@@ -72,5 +59,5 @@ EXPOSE 3003
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
     CMD curl -f http://localhost:3003/health || exit 1
 
-# Start command using the startup script
-CMD ["/app/start.sh"]
+# Start command - run node directly
+CMD ["node", "src/index.js"]
