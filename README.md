@@ -213,9 +213,10 @@ Download transcript in various formats.
 
 These endpoints allow frontend to directly request transcriptions with consistent input format:
 
-- `POST /api/transcribe` - Transcribe audio and get both raw transcript and AI summary
-- `POST /api/transcribe/raw` - Get only raw transcript (faster response)
-- `POST /api/transcribe/summary` - Get only AI summary (internally transcribes first)
+- `POST /api/transcribe` - Transcribe audio and get both raw transcript and AI summary (uses participant names)
+- `POST /api/transcribe/raw` - Get only raw transcript with generic speaker labels (Speaker 1, Speaker 2, etc.)
+- `POST /api/transcribe/summary` - Get only AI summary (uses participant names internally)
+- `POST /api/transcribe/raw_save` - Transcribe and save to Supabase database (for Meeting Bot team)
 
 All endpoints accept the same request format with audio URL and participants list.
 

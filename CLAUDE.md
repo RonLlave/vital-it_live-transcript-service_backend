@@ -250,6 +250,18 @@ To re-enable automatic mode, uncomment the disabled code in:
 - `/api/transcribe/summary` now accepts audio URL instead of segments
 - Consistent parameter structure across raw, full, and summary endpoints
 
+### Speaker Identification Strategy
+- `/api/transcribe/raw` uses generic "Speaker 1", "Speaker 2" labels
+- Gemini intelligently detects number of speakers and maintains consistency
+- `/api/transcribe` and `/api/transcribe/summary` use participant names
+- Raw endpoint ignores participant list for speaker naming
+
+### Database Integration
+- Added `/api/transcribe/raw_save` endpoint for Meeting Bot team
+- Saves transcripts directly to Supabase `meeting_bot_audio_transcript` table
+- Updates record status and handles errors gracefully
+- Uses generic speaker labels for consistency
+
 ## Commands Reference
 
 ```bash

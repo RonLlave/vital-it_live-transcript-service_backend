@@ -5,6 +5,7 @@ const Logger = require('../../utils/Logger');
 const axios = require('axios');
 const GeminiTranscriptionService = require('../../services/GeminiTranscriptionService');
 const { formatDuration } = require('../../utils/formatDuration');
+const SupabaseClient = require('../../utils/SupabaseClient');
 
 /**
  * Transcribe audio and return both raw transcript and AI summary
@@ -135,14 +136,15 @@ router.post('/raw', asyncHandler(async (req, res) => {
 
     const audioBuffer = Buffer.from(audioResponse.data);
 
-    // Transcribe
+    // Transcribe with generic speaker labels
     const transcription = await GeminiTranscriptionService.transcribeAudio(
       audioBuffer,
       {
         botId,
         meetingUrl,
         participants,
-        isIncremental: false
+        isIncremental: false,
+        useGenericSpeakers: true  // Use Speaker 1, Speaker 2, etc.
       }
     );
 
@@ -291,6 +293,160 @@ router.post('/summary', asyncHandler(async (req, res) => {
     // Provide a more specific error response
     if (error.message?.includes('Gemini model not initialized')) {
       throw new ExternalAPIError('Gemini API', 'AI service not properly initialized');
+    }
+    
+    throw error;
+  }
+}));
+
+/**
+ * Transcribe audio from public URL and save to Supabase
+ * POST /api/transcribe/raw_save
+ */
+router.post('/raw_save', asyncHandler(async (req, res) => {
+  const { id, publicUrl } = req.body;
+
+  // Validate inputs
+  if (!id) {
+    throw new ValidationError('ID is required', 'id');
+  }
+
+  if (!publicUrl) {
+    throw new ValidationError('Public URL is required', 'publicUrl');
+  }
+
+  // Check if Supabase is initialized
+  if (!SupabaseClient.isReady()) {
+    throw new ExternalAPIError('Supabase', 'Database service not configured');
+  }
+
+  Logger.info('Raw transcript save request', {
+    id,
+    publicUrl
+  });
+
+  try {
+    // Fetch audio from public URL
+    const audioResponse = await axios.get(publicUrl, {
+      responseType: 'arraybuffer',
+      timeout: 60000, // 60 seconds for larger files
+      maxContentLength: 500 * 1024 * 1024 // 500MB max
+    });
+
+    const audioBuffer = Buffer.from(audioResponse.data);
+    
+    Logger.info('Audio fetched from public URL', {
+      size: audioBuffer.length,
+      sizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2)
+    });
+
+    // Transcribe with generic speaker labels
+    const transcription = await GeminiTranscriptionService.transcribeAudio(
+      audioBuffer,
+      {
+        botId: `supabase_${id}`,
+        isIncremental: false,
+        useGenericSpeakers: true  // Use Speaker 1, Speaker 2, etc.
+      }
+    );
+
+    // Format the transcript for storage
+    const rawTranscript = {
+      segments: (transcription.segments || []).map((segment, index) => ({
+        id: index + 1,
+        speaker: segment.speaker,
+        text: segment.text,
+        startTime: segment.startTime || 0,
+        endTime: segment.endTime || 0,
+        confidence: segment.confidence || 0
+      })),
+      fullText: transcription.fullText || '',
+      wordCount: transcription.wordCount || 0,
+      duration: transcription.metadata?.duration || 0,
+      detectedLanguage: transcription.detectedLanguage || 'unknown',
+      languageConfidence: transcription.languageConfidence || 0,
+      metadata: {
+        transcribedAt: new Date().toISOString(),
+        audioUrl: publicUrl,
+        model: 'gemini-1.5-flash'
+      }
+    };
+
+    // Count unique speakers
+    const uniqueSpeakers = new Set(
+      (transcription.segments || [])
+        .map(segment => segment.speaker)
+        .filter(speaker => speaker && speaker !== 'Unknown')
+    );
+    const speakersIdentifiedCount = uniqueSpeakers.size;
+
+    // Update the row in Supabase
+    const supabase = SupabaseClient.getClient();
+    const { data, error } = await supabase
+      .from('meeting_bot_audio_transcript')
+      .update({
+        raw_transcript: rawTranscript,
+        speakers_identified_count: speakersIdentifiedCount,
+        transcribed_at: new Date().toISOString(),
+        status: 'completed'
+      })
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      Logger.error('Failed to save transcript to Supabase:', {
+        error: error.message,
+        code: error.code,
+        details: error.details
+      });
+      throw new ExternalAPIError('Supabase', `Failed to save transcript: ${error.message}`);
+    }
+
+    if (!data || data.length === 0) {
+      throw new ValidationError('No record found with the provided ID', 'id');
+    }
+
+    Logger.info('Transcript saved successfully', {
+      id,
+      segmentCount: rawTranscript.segments.length,
+      wordCount: rawTranscript.wordCount,
+      speakersIdentifiedCount
+    });
+
+    res.json({
+      success: true,
+      id,
+      message: 'Transcript saved successfully',
+      transcript: {
+        segmentCount: rawTranscript.segments.length,
+        wordCount: rawTranscript.wordCount,
+        duration: rawTranscript.duration,
+        detectedLanguage: rawTranscript.detectedLanguage,
+        speakersIdentifiedCount: speakersIdentifiedCount
+      }
+    });
+
+  } catch (error) {
+    Logger.error('Raw transcript save failed:', {
+      error: error.message,
+      stack: error.stack,
+      id,
+      publicUrl
+    });
+    
+    // Update status to failed in Supabase
+    try {
+      const supabase = SupabaseClient.getClient();
+      await supabase
+        .from('meeting_bot_audio_transcript')
+        .update({
+          status: 'failed',
+          error_message: error.message,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+    } catch (updateError) {
+      Logger.error('Failed to update error status:', updateError);
     }
     
     throw error;

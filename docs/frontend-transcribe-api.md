@@ -8,7 +8,17 @@ These endpoints allow the frontend to directly request transcription of audio by
 https://live-transcript-service-backend.dev.singularity-works.com
 ```
 
+## Speaker Identification Behavior
+
+The endpoints handle speaker identification differently:
+
+- **`/api/transcribe`** - Uses participant names to identify speakers (e.g., "John Doe", "Jane Smith")
+- **`/api/transcribe/raw`** - Uses generic labels with intelligent detection (e.g., "Speaker 1", "Speaker 2")
+- **`/api/transcribe/summary`** - Uses participant names internally for better context in the summary
+
 ## Endpoints
+
+> **Note:** For Meeting Bot team integration, see the [`/api/transcribe/raw_save`](meeting-bot-raw-save-api.md) endpoint documentation.
 
 ### 1. Transcribe Audio (Raw + AI Summary)
 **Endpoint:** `POST /api/transcribe`
@@ -92,13 +102,13 @@ https://live-transcript-service-backend.dev.singularity-works.com
 ### 2. Raw Transcript Only
 **Endpoint:** `POST /api/transcribe/raw`
 
-**Description:** Returns only the raw transcript without AI summary (faster response).
+**Description:** Returns only the raw transcript without AI summary (faster response). Uses generic speaker labels (Speaker 1, Speaker 2, etc.) with intelligent speaker detection.
 
 **Request Body:**
 ```json
 {
   "audioUrl": "https://meeting-bot-backend.dev.singularity-works.com/api/google-meet-guest/audio-blob/guest_bot_123",
-  "participants": [...],
+  "participants": [...],  // Still accepted but not used for speaker names
   "eventId": "google_meet_event_123",
   "meetingUrl": "https://meet.google.com/abc-defg-hij"
 }
@@ -110,13 +120,40 @@ https://live-transcript-service-backend.dev.singularity-works.com
   "success": true,
   "eventId": "google_meet_event_123",
   "transcription": {
-    "segments": [...],
-    "fullText": "...",
+    "segments": [
+      {
+        "id": "segment_1",
+        "speaker": "Speaker 1",
+        "text": "Hello everyone, let's start the meeting.",
+        "timestamp": "00:00:05",
+        "startTimestamp": "00:00:05",
+        "endTimestamp": "00:00:08",
+        "startTime": 5.0,
+        "endTime": 8.5,
+        "confidence": 0.95
+      },
+      {
+        "id": "segment_2",
+        "speaker": "Speaker 2",
+        "text": "Thanks for joining today.",
+        "timestamp": "00:00:09",
+        "startTimestamp": "00:00:09",
+        "endTimestamp": "00:00:11",
+        "startTime": 9.0,
+        "endTime": 11.2,
+        "confidence": 0.93
+      }
+    ],
+    "fullText": "Speaker 1: Hello everyone, let's start the meeting. Speaker 2: Thanks for joining today...",
     "wordCount": 250,
     "duration": 180.5,
     "detectedLanguage": "en",
     "languageConfidence": 0.98,
-    "metadata": {...}
+    "metadata": {
+      "totalSegments": 45,
+      "languages": ["en"],
+      "lastUpdated": "2025-07-24T10:00:00.000Z"
+    }
   }
 }
 ```

@@ -50,7 +50,8 @@ class GeminiTranscriptionService {
       meetingUrl,
       isIncremental = false,
       previousContext = null,
-      participants = []
+      participants = [],
+      useGenericSpeakers = false
     } = options;
 
     const startTime = Date.now();
@@ -90,7 +91,7 @@ class GeminiTranscriptionService {
       });
       
       // Build transcription prompt
-      const prompt = this.buildTranscriptionPrompt(isIncremental, previousContext, participants);
+      const prompt = this.buildTranscriptionPrompt(isIncremental, previousContext, participants, useGenericSpeakers);
       
       Logger.debug(`Sending request to Gemini API...`);
       
@@ -134,7 +135,7 @@ class GeminiTranscriptionService {
       const transcription = this.parseTranscriptionResponse(result);
       
       // Post-process segments to ensure proper speaker names
-      if (participants && participants.length > 0) {
+      if (participants && participants.length > 0 && !useGenericSpeakers) {
         Logger.info('Normalizing speaker names', {
           participantCount: participants.length,
           participants: participants.map(p => p.name || p.email),
@@ -202,21 +203,53 @@ class GeminiTranscriptionService {
    * @param {boolean} isIncremental - Whether this is incremental transcription
    * @param {Object} previousContext - Previous transcription context
    * @param {Array} participants - List of meeting participants
+   * @param {boolean} useGenericSpeakers - Whether to use generic speaker labels
    * @returns {string} Prompt
    */
-  buildTranscriptionPrompt(isIncremental, previousContext, participants = []) {
-    // Get participant names
-    const participantNames = participants
-      .map(p => p.name || p.email || 'Unknown')
-      .filter(name => name !== 'Unknown');
+  buildTranscriptionPrompt(isIncremental, previousContext, participants = [], useGenericSpeakers = false) {
+    let prompt;
     
-    // Build speaker list string
-    const speakerList = participantNames.length > 0 
-      ? participantNames.join(', ')
-      : 'Unknown';
-    
-    // Use a more direct prompt similar to the user's approach
-    let prompt = `This is an audio file, and use the speakers with names of ${speakerList}.
+    if (useGenericSpeakers) {
+      // Generic speaker prompt for raw transcripts
+      prompt = `This is an audio file. Transcribe it and intelligently identify different speakers.
+
+Transcribe the audio and format the response as JSON with this exact structure:
+{
+  "detectedLanguage": "language code (e.g., 'en', 'de', 'es')",
+  "languageConfidence": confidence score 0-1,
+  "alternativeLanguages": [{"language": "code", "confidence": score}],
+  "segments": [
+    {
+      "speaker": "Speaker 1",
+      "text": "Transcribed text",
+      "startTime": start time in seconds,
+      "endTime": end time in seconds,
+      "confidence": confidence score 0-1
+    }
+  ],
+  "fullText": "Complete transcription as plain text",
+  "wordCount": total word count
+}
+
+CRITICAL RULES:
+1. Identify different speakers based on voice characteristics
+2. Use consistent labels: "Speaker 1", "Speaker 2", "Speaker 3", etc.
+3. The same speaker should always have the same label throughout the transcript
+4. Auto-detect language from: ${this.languageHints.join(', ')}
+5. Include accurate timestamps for each segment
+6. Be smart about speaker detection - if it's clearly the same voice, use the same speaker label`;
+
+    } else {
+      // Use participant names
+      const participantNames = participants
+        .map(p => p.name || p.email || 'Unknown')
+        .filter(name => name !== 'Unknown');
+      
+      const speakerList = participantNames.length > 0 
+        ? participantNames.join(', ')
+        : 'Unknown';
+      
+      prompt = `This is an audio file, and use the speakers with names of ${speakerList}.
 
 Transcribe the audio and format the response as JSON with this exact structure:
 {
@@ -242,10 +275,11 @@ CRITICAL RULES:
 3. Auto-detect language from: ${this.languageHints.join(', ')}
 4. Include accurate timestamps for each segment`;
 
-    if (participantNames.length === 1) {
-      prompt += `\n\nSince there is only one participant (${participantNames[0]}), ALL segments must have "speaker": "${participantNames[0]}"`;
-    } else if (participantNames.length > 1) {
-      prompt += `\n\nMultiple participants detected. Match voices and use ONLY these names in the speaker field: ${speakerList}`;
+      if (participantNames.length === 1) {
+        prompt += `\n\nSince there is only one participant (${participantNames[0]}), ALL segments must have "speaker": "${participantNames[0]}"`;
+      } else if (participantNames.length > 1) {
+        prompt += `\n\nMultiple participants detected. Match voices and use ONLY these names in the speaker field: ${speakerList}`;
+      }
     }
 
     if (isIncremental && previousContext) {
