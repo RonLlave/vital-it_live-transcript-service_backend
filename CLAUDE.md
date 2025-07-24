@@ -208,6 +208,20 @@ npm run test        # Verify nothing breaks
 3. **CDN Integration**: For static assets
 4. **Microservices Split**: Separate transcription service
 
+## Operating Mode
+
+### Frontend-Initiated Transcription (Current Mode)
+The service currently operates in frontend-initiated mode only:
+- Automatic bot pool monitoring is **DISABLED**
+- Automatic audio fetching is **DISABLED**
+- Frontend makes POST requests to `/api/transcribe/*` endpoints
+- Frontend provides audio URLs and participant lists
+- No automatic session creation or polling
+
+To re-enable automatic mode, uncomment the disabled code in:
+- `src/index.js` - Service initialization
+- `src/services/TranscriptStreamService.js` - Bot pool subscription
+
 ## Recent Updates (July 2025)
 
 ### Service Resilience

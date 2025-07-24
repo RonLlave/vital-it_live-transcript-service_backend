@@ -49,20 +49,26 @@ async function initializeServices() {
     await TranscriptStreamService.initialize();
     Logger.info('✓ Transcript Stream Service initialized');
 
-    // Initialize Audio Fetch Service
-    await AudioFetchService.initialize();
-    Logger.info('✓ Audio Fetch Service initialized');
+    // DISABLED: Automatic transcription functionality
+    // The following services are disabled but code is preserved
+    // Frontend will handle transcription requests via POST endpoints
+    
+    // // Initialize Audio Fetch Service
+    // await AudioFetchService.initialize();
+    // Logger.info('✓ Audio Fetch Service initialized');
 
-    // Wait for Meeting Bot API to be available before starting monitors
-    await waitForMeetingBotAPI();
+    // // Wait for Meeting Bot API to be available before starting monitors
+    // await waitForMeetingBotAPI();
 
-    // Start Bot Pool Monitor
-    BotPoolMonitor.start();
-    Logger.info('✓ Bot Pool Monitor started');
+    // // Start Bot Pool Monitor
+    // BotPoolMonitor.start();
+    // Logger.info('✓ Bot Pool Monitor started');
 
-    // Initialize Service Monitor
-    initializeServiceMonitor();
-    Logger.info('✓ Service Monitor started');
+    // // Initialize Service Monitor
+    // initializeServiceMonitor();
+    // Logger.info('✓ Service Monitor started');
+    
+    Logger.info('Automatic transcription disabled - using frontend-initiated transcription only');
 
     Logger.info('All services initialized successfully');
   } catch (error) {
@@ -154,17 +160,18 @@ async function gracefulShutdown(server) {
     
     try {
       // Stop services
-      BotPoolMonitor.stop();
-      Logger.info('✓ Bot Pool Monitor stopped');
+      // DISABLED: Automatic transcription services
+      // BotPoolMonitor.stop();
+      // Logger.info('✓ Bot Pool Monitor stopped');
 
-      AudioFetchService.stop();
-      Logger.info('✓ Audio Fetch Service stopped');
+      // AudioFetchService.stop();
+      // Logger.info('✓ Audio Fetch Service stopped');
 
       TranscriptStreamService.stop();
       Logger.info('✓ Transcript Stream Service stopped');
 
-      ServiceMonitor.stop();
-      Logger.info('✓ Service Monitor stopped');
+      // ServiceMonitor.stop();
+      // Logger.info('✓ Service Monitor stopped');
 
       Logger.info('Graceful shutdown completed');
       process.exit(0);

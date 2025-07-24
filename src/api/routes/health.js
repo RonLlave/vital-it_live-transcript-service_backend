@@ -21,9 +21,9 @@ router.get('/', asyncHandler(async (req, res) => {
     geminiAPI: 'unknown',
     memory: 'healthy',
     services: {
-      botPoolMonitor: 'unknown',
-      audioFetchService: 'unknown',
-      transcriptStreamService: 'unknown'
+      botPoolMonitor: 'disabled',
+      audioFetchService: 'disabled',
+      transcriptStreamService: 'healthy'
     }
   };
 
@@ -71,24 +71,25 @@ router.get('/', asyncHandler(async (req, res) => {
   }
 
   // Check services status
-  const botPoolStatus = BotPoolMonitor.getStatus();
-  healthChecks.services.botPoolMonitor = botPoolStatus.isMonitoring ? 'healthy' : 'stopped';
+  // DISABLED: Automatic services
+  // const botPoolStatus = BotPoolMonitor.getStatus();
+  // healthChecks.services.botPoolMonitor = botPoolStatus.isMonitoring ? 'healthy' : 'stopped';
 
-  const audioFetchStatus = AudioFetchService.getStatus();
-  healthChecks.services.audioFetchService = audioFetchStatus.isRunning ? 'healthy' : 'stopped';
+  // const audioFetchStatus = AudioFetchService.getStatus();
+  // healthChecks.services.audioFetchService = audioFetchStatus.isRunning ? 'healthy' : 'stopped';
 
   const transcriptStats = TranscriptStreamService.getStats();
   healthChecks.services.transcriptStreamService = transcriptStats.activeSessions >= 0 ? 'healthy' : 'error';
 
   // Add external services status
-  const externalServices = ServiceMonitor.getAllStatus();
-  healthChecks.externalServices = externalServices;
+  // const externalServices = ServiceMonitor.getAllStatus();
+  // healthChecks.externalServices = externalServices;
 
   // Determine overall health
   const isHealthy = 
     healthChecks.service === 'healthy' &&
     healthChecks.memory !== 'critical' &&
-    Object.values(healthChecks.services).every(status => status === 'healthy');
+    healthChecks.services.transcriptStreamService === 'healthy';
 
   const response = {
     status: isHealthy ? 'healthy' : 'degraded',

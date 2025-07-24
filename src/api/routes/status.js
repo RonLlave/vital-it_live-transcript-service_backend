@@ -16,15 +16,16 @@ router.get('/', asyncHandler(async (req, res) => {
   const startTime = Date.now();
 
   // Get status from all services
-  const botPoolStatus = BotPoolMonitor.getStatus();
-  const audioFetchStatus = AudioFetchService.getStatus();
+  // DISABLED: Automatic services
+  // const botPoolStatus = BotPoolMonitor.getStatus();
+  // const audioFetchStatus = AudioFetchService.getStatus();
   const transcriptStats = TranscriptStreamService.getStats();
   const geminiStats = GeminiTranscriptionService.getStats();
 
   // Calculate operational status
   const operationalStatus = determineOperationalStatus({
-    botPoolMonitor: botPoolStatus.isMonitoring,
-    audioFetchService: audioFetchStatus.isRunning,
+    botPoolMonitor: false, // Disabled
+    audioFetchService: false, // Disabled
     transcriptSessions: transcriptStats.activeSessions >= 0
   });
 
@@ -34,7 +35,7 @@ router.get('/', asyncHandler(async (req, res) => {
     activeSessions: transcriptStats.activeSessions,
     totalTranscriptions: geminiStats.total,
     geminiApiStatus: process.env.GOOGLE_GEMINI_API_KEY ? 'configured' : 'not_configured',
-    botApiStatus: botPoolStatus.isMonitoring ? 'connected' : 'disconnected',
+    botApiStatus: 'disabled',
     uptime: Math.floor(process.uptime()),
     uptimeFormatted: formatUptime(process.uptime()),
     memoryUsage: `${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`,
@@ -43,20 +44,12 @@ router.get('/', asyncHandler(async (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       botPoolMonitor: {
-        status: botPoolStatus.isMonitoring ? 'active' : 'inactive',
-        activeBots: botPoolStatus.activeBotCount,
-        lastPoll: botPoolStatus.lastPollTime,
-        pollInterval: `${botPoolStatus.pollInterval}ms`
+        status: 'disabled',
+        note: 'Automatic monitoring disabled - using frontend-initiated transcription'
       },
       audioFetchService: {
-        status: audioFetchStatus.isRunning ? 'active' : 'inactive',
-        activeBuffers: audioFetchStatus.activeBuffers,
-        buffers: audioFetchStatus.bufferDetails.map(buffer => ({
-          botId: buffer.botId,
-          duration: `${buffer.duration}s`,
-          size: `${Math.round(buffer.size / 1024)}KB`,
-          lastFetch: buffer.lastFetchTime
-        }))
+        status: 'disabled',
+        note: 'Automatic fetching disabled - using frontend-provided audio URLs'
       },
       transcriptionService: {
         totalRequests: geminiStats.total,

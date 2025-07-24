@@ -2,6 +2,8 @@
 
 A Node.js backend service that consumes audio streams from the Meeting Bot API, transcribes them using Google Gemini API, and provides real-time transcripts through API endpoints.
 
+**Note: Automatic transcription is currently disabled. The service operates in frontend-initiated mode only, where transcription requests are made via POST endpoints.**
+
 ## Features
 
 - **Real-time Audio Processing**: Polls Meeting Bot API for active bots and fetches audio streams

@@ -26,15 +26,18 @@ class TranscriptStreamService extends EventEmitter {
    * Initialize the service
    */
   async initialize() {
-    // Subscribe to bot pool updates to create sessions immediately
-    BotPoolMonitor.subscribe(this.handleBotPoolUpdate.bind(this));
+    // DISABLED: Automatic transcription functionality
+    // Frontend will handle all transcription requests
+    
+    // // Subscribe to bot pool updates to create sessions immediately
+    // BotPoolMonitor.subscribe(this.handleBotPoolUpdate.bind(this));
     
     this.isRunning = true;
     
-    // Start processing loop
-    this.startProcessingLoop();
+    // // Start processing loop
+    // this.startProcessingLoop();
     
-    Logger.info('TranscriptStreamService initialized');
+    Logger.info('TranscriptStreamService initialized (automatic transcription disabled)');
   }
 
   /**
