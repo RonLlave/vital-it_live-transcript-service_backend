@@ -145,14 +145,17 @@ class TranscriptStreamService extends EventEmitter {
 
     // Check if meeting has been running for minimum required time
     const transcriptionStartDelay = parseInt(process.env.TRANSCRIPTION_START_DELAY) || 30;
-    const meetingDuration = (Date.now() - session.startedAt.getTime()) / 1000;
+    // Use actual meeting duration from bot pool if available
+    const meetingDuration = audioData.meetingDuration || ((Date.now() - session.startedAt.getTime()) / 1000);
+    
     if (meetingDuration < transcriptionStartDelay) {
       Logger.info(`⏳ Waiting for meeting to stabilize before transcribing`, {
         sessionId,
         botId,
         meetingDuration: meetingDuration.toFixed(1),
         waitTime: (transcriptionStartDelay - meetingDuration).toFixed(1),
-        requiredDelay: transcriptionStartDelay
+        requiredDelay: transcriptionStartDelay,
+        source: audioData.meetingDuration ? 'bot_pool' : 'session'
       });
       return;
     }

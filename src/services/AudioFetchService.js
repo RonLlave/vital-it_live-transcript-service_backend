@@ -234,7 +234,8 @@ class AudioFetchService {
         fingerprint,
         metadata,
         botId,
-        meetingUrl
+        meetingUrl,
+        meetingDuration: bot.duration || 0 // Store meeting duration
       });
 
       Logger.info(`Fetched audio for bot ${botId}`, {
@@ -252,7 +253,8 @@ class AudioFetchService {
         fullBuffer: audioBuffer,
         metadata,
         isIncremental,
-        timestamp: new Date()
+        timestamp: new Date(),
+        meetingDuration: bot.duration || 0 // Add actual meeting duration from bot pool
       };
 
     } catch (error) {
