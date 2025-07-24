@@ -19,6 +19,8 @@ The endpoints handle speaker identification differently:
 ## Endpoints
 
 > **Note:** For Meeting Bot team integration, see the [`/api/transcribe/raw_save`](meeting-bot-raw-save-api.md) endpoint documentation.
+> 
+> **Note:** To configure speaker names after transcription, see the [`/api/config_speakers`](config-speakers-api.md) endpoint documentation.
 
 ### 1. Transcribe Audio (Raw + AI Summary)
 **Endpoint:** `POST /api/transcribe`

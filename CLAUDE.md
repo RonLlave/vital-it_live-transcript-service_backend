@@ -261,6 +261,7 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Saves transcripts directly to Supabase `meeting_bot_audio_transcript` table
 - Updates record status and handles errors gracefully
 - Uses generic speaker labels for consistency
+- Added `/api/config_speakers` to update speaker names after transcription
 
 ## Commands Reference
 

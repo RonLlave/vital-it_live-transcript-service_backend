@@ -217,8 +217,9 @@ These endpoints allow frontend to directly request transcriptions with consisten
 - `POST /api/transcribe/raw` - Get only raw transcript with generic speaker labels (Speaker 1, Speaker 2, etc.)
 - `POST /api/transcribe/summary` - Get only AI summary (uses participant names internally)
 - `POST /api/transcribe/raw_save` - Transcribe and save to Supabase database (for Meeting Bot team)
+- `POST /api/config_speakers` - Replace generic speaker labels with participant names in saved transcripts
 
-All endpoints accept the same request format with audio URL and participants list.
+All transcribe endpoints accept the same request format with audio URL and participants list.
 
 See [Frontend Transcribe API Documentation](docs/frontend-transcribe-api.md) for detailed usage.
 

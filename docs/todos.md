@@ -1,5 +1,8 @@
 # Please implement the instructions below
-1. Create new API endpoint with /api/transcribe/raw_save with POST body request of id, and publicURL which will be use by the meeting bot frontend for you to audio to text transcribe the given publicUrl and save it to the raw_transcript column. The table for you to search and update the row with the given id is meeting_bot_audio_transcript in the supabase that we are already connected with. And still follow the Speaker format of "Speaker 1", "Speaker 2" and so on. 
-    ex. id - 780bb9d9-3334-422d-81f1-145a8f68c3b3
-        publicUrl - https://supabasekong-os0gcs8scwgk8ogg4owg4sww.dev.singularity-works.com/storage/v1/object/public/bot-audio-transcript/google_meet_iuf-egac-zwm_2025-07-24_08-45-12.mp3
-2. Please create a prompt for the meeting bot team to use this new API endpoint and they will do the POST with the request body of id and publicUrl.
+1. Create new API endpoint with /api/config_speakers which this will be used by the frontend to POST with request body of id (id row in the meeting_bot_audio_transcript table), and participant list (in order) for you to update and replace the generic speakers from the raw_transcript column of the meeting_bot_audio_transcript table.
+    ex. if there is identified speaker count of 3  
+    participants{
+        "Ron Llave",
+        "Matthias Umpieriezz,
+        "Emil Santos"
+    }
