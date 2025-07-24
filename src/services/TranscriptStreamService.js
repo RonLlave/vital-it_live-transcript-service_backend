@@ -163,7 +163,8 @@ class TranscriptStreamService extends EventEmitter {
       botId,
       audioSize: incrementalBuffer.length,
       existingSegments: session.segments.length,
-      meetingDuration: meetingDuration.toFixed(1)
+      meetingDuration: meetingDuration.toFixed(1),
+      participantCount: session.metadata?.participants?.length || 0
     });
 
     const transcription = await GeminiTranscriptionService.transcribeAudio(
@@ -172,7 +173,8 @@ class TranscriptStreamService extends EventEmitter {
         botId,
         meetingUrl,
         isIncremental: session.segments.length > 0,
-        previousContext: session.context
+        previousContext: session.context,
+        participants: session.metadata?.participants || []
       }
     );
 
@@ -308,6 +310,21 @@ class TranscriptStreamService extends EventEmitter {
 
       // Update context for next transcription
       session.context = transcription.context || session.context;
+      
+      // Update context with actual speaker names if detected
+      if (transcription.segments && transcription.segments.length > 0) {
+        const lastSegment = transcription.segments[transcription.segments.length - 1];
+        session.context.lastSpeaker = lastSegment.speaker;
+        
+        // Collect unique speaker names (not "Unknown" or "Speaker X")
+        const speakerNames = transcription.segments
+          .map(seg => seg.speaker)
+          .filter(speaker => speaker && !speaker.startsWith('Speaker ') && speaker !== 'Unknown');
+        
+        if (speakerNames.length > 0) {
+          session.context.speakers = [...new Set([...session.context.speakers, ...speakerNames])];
+        }
+      }
       
       // Update last updated timestamp
       session.lastUpdated = new Date();

@@ -13,8 +13,9 @@ services:
     ports:
       - "${PORT:-3003}:3003"
     environment:
-      # Server Configuration
+      # Node.js Configuration - CRITICAL FOR STABILITY
       - NODE_ENV=production
+      - NODE_OPTIONS=--max-old-space-size=8192
       - PORT=3003
       - SERVICE_NAME=live-transcript-service
 
@@ -31,6 +32,7 @@ services:
       - AUDIO_FETCH_INTERVAL=${AUDIO_FETCH_INTERVAL:-5000}
       - AUDIO_BUFFER_SIZE=${AUDIO_BUFFER_SIZE:-30}
       - AUDIO_FORMAT=${AUDIO_FORMAT:-WAV}
+      - TRANSCRIPTION_START_DELAY=${TRANSCRIPTION_START_DELAY:-30}
 
       # Transcript Configuration
       - TRANSCRIPT_LANGUAGE=${TRANSCRIPT_LANGUAGE:-auto}
@@ -44,11 +46,11 @@ services:
       - ENABLE_METRICS=${ENABLE_METRICS:-true}
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3003/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3003/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 90s # Increased from 60s for better startup tolerance
 
     # Resource limits (matching Meeting Bot API project)
     deploy:
@@ -60,16 +62,36 @@ services:
           cpus: "2"
           memory: 8G
 
-    # Logging configuration
+    # CRITICAL: Process limits to prevent "too many open files" errors
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+      nproc:
+        soft: 4096
+        hard: 4096
+
+    # CRITICAL: Proper init for zombie process reaping
+    init: true
+
+    # CRITICAL: Graceful shutdown
+    stop_grace_period: 60s
+
+    # CRITICAL: Shared memory for Node.js operations
+    shm_size: 2gb
+
+    # Enhanced logging configuration
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: "50m"
+        max-file: "5"
 
-    # Volume for temporary audio files
+    # Volume for temporary audio files and persistent data
     volumes:
       - audio_temp:/app/temp
+      - transcript_data:/app/data
+      - logs:/app/logs
 
     # Network configuration
     networks:
@@ -78,6 +100,10 @@ services:
 # Volumes
 volumes:
   audio_temp:
+    driver: local
+  transcript_data:
+    driver: local
+  logs:
     driver: local
 
 # Networks

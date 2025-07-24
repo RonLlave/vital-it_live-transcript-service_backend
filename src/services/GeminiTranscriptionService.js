@@ -49,7 +49,8 @@ class GeminiTranscriptionService {
       botId,
       meetingUrl,
       isIncremental = false,
-      previousContext = null
+      previousContext = null,
+      participants = []
     } = options;
 
     const startTime = Date.now();
@@ -60,7 +61,9 @@ class GeminiTranscriptionService {
       audioSize: audioBuffer.length,
       audioSizeMB: (audioBuffer.length / 1024 / 1024).toFixed(2),
       isIncremental,
-      meetingUrl
+      meetingUrl,
+      participantCount: participants.length,
+      participants: participants.map(p => p.name || p.email || 'Unknown').slice(0, 5) // Log first 5 names
     });
 
     try {
@@ -87,7 +90,7 @@ class GeminiTranscriptionService {
       });
       
       // Build transcription prompt
-      const prompt = this.buildTranscriptionPrompt(isIncremental, previousContext);
+      const prompt = this.buildTranscriptionPrompt(isIncremental, previousContext, participants);
       
       Logger.debug(`Sending request to Gemini API...`);
       
@@ -180,9 +183,10 @@ class GeminiTranscriptionService {
    * Build transcription prompt for Gemini
    * @param {boolean} isIncremental - Whether this is incremental transcription
    * @param {Object} previousContext - Previous transcription context
+   * @param {Array} participants - List of meeting participants
    * @returns {string} Prompt
    */
-  buildTranscriptionPrompt(isIncremental, previousContext) {
+  buildTranscriptionPrompt(isIncremental, previousContext, participants = []) {
     let prompt = `Transcribe this audio with the following requirements:
 1. Auto-detect the language from these possibilities: ${this.languageHints.join(', ')}
 2. Include timestamps for each segment (relative to the audio start)
@@ -193,7 +197,7 @@ class GeminiTranscriptionService {
   "alternativeLanguages": [{"language": "code", "confidence": score}],
   "segments": [
     {
-      "speaker": "Speaker label or 'Unknown'",
+      "speaker": "Speaker name or 'Unknown'",
       "text": "Transcribed text",
       "startTime": start time in seconds,
       "endTime": end time in seconds,
@@ -205,7 +209,18 @@ class GeminiTranscriptionService {
 }`;
 
     if (this.enableSpeakerDiarization) {
-      prompt += '\n4. Identify different speakers and label them consistently (e.g., "Speaker 1", "Speaker 2")';
+      prompt += '\n4. Identify different speakers based on voice characteristics.';
+      
+      // Add participant information if available
+      if (participants && participants.length > 0) {
+        const participantNames = participants
+          .map(p => p.name || p.email?.split('@')[0] || 'Unknown')
+          .filter(name => name !== 'Unknown');
+        
+        if (participantNames.length > 0) {
+          prompt += `\n5. Meeting participants include: ${participantNames.join(', ')}. Try to match voices to these participants when possible, but use "Speaker 1", "Speaker 2" etc. if uncertain.`;
+        }
+      }
     }
 
     if (isIncremental && previousContext) {
