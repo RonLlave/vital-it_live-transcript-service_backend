@@ -225,6 +225,12 @@ npm run test        # Verify nothing breaks
 - Added `TRANSCRIPTION_START_DELAY` (default 30s) to avoid premature audio
 - Removed FFmpeg dependency for simpler audio validation
 
+### Speaker Identification
+- Enhanced Gemini prompt to use direct speaker naming approach
+- Added aggressive post-processing to replace generic labels with participant names
+- For single participant meetings, all segments use the participant's name
+- For multiple participants, fuzzy matching and heuristics are applied
+
 ## Commands Reference
 
 ```bash
@@ -284,6 +290,7 @@ curl -X POST http://localhost:3003/api/debug/force-transcribe  # Force audio pro
 2. **Audio Availability**: Audio may not be immediately available when bot joins. Service handles 425 status gracefully.
 3. **Rate Limiting**: Implement exponential backoff for external API calls
 4. **Premature Audio**: Audio at the start of meetings can be unstable. Service waits 30 seconds (configurable via `TRANSCRIPTION_START_DELAY`) before starting transcription to ensure audio quality.
+5. **Speaker Identification**: Gemini may return generic labels like "Unknown" or "Speaker 1" despite being provided participant names. Service includes aggressive post-processing to replace these with actual participant names. For single participant meetings, all segments are forced to use the participant's name.
 
 ## Contact & Support
 

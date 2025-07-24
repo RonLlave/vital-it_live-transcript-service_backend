@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { asyncHandler, ValidationError } = require('../../utils/ErrorHandler');
+const { asyncHandler, ValidationError, ExternalAPIError } = require('../../utils/ErrorHandler');
 const Logger = require('../../utils/Logger');
 const axios = require('axios');
 const GeminiTranscriptionService = require('../../services/GeminiTranscriptionService');
@@ -200,9 +200,22 @@ router.post('/summary', asyncHandler(async (req, res) => {
   });
 
   try {
+    // Prepare transcript object from segments
+    const transcript = {
+      segments: segments,
+      fullText: segments.map(s => `${s.speaker}: ${s.text}`).join('\n'),
+      wordCount: segments.reduce((count, s) => count + (s.text?.split(/\s+/).length || 0), 0),
+      duration: segments.length > 0 ? segments[segments.length - 1].endTime || 0 : 0,
+      detectedLanguage: 'en' // Could be detected from segments if needed
+    };
+
+    // Extract unique speakers as participants
+    const speakers = [...new Set(segments.map(s => s.speaker).filter(s => s && s !== 'Unknown'))];
+    
     // Generate AI summary
-    const aiSummary = await GeminiTranscriptionService.generateSummary(segments, {
+    const aiSummary = await GeminiTranscriptionService.generateSummary(transcript, {
       meetingTitle,
+      participants: speakers,
       includeActionItems: true
     });
 
@@ -211,18 +224,36 @@ router.post('/summary', asyncHandler(async (req, res) => {
       eventId,
       aiSummary: {
         summary: aiSummary.summary,
-        keyPoints: aiSummary.keyPoints || [],
-        actionItems: aiSummary.actionItems || [],
+        keyPoints: aiSummary.summary?.keyPoints || [],
+        actionItems: aiSummary.summary?.actionItems || [],
+        decisions: aiSummary.summary?.decisions || [],
+        topics: aiSummary.summary?.topics || [],
+        sentiment: aiSummary.summary?.sentiment || 'neutral',
+        nextSteps: aiSummary.summary?.nextSteps || [],
+        insights: aiSummary.insights || {},
         metadata: {
           generatedAt: new Date().toISOString(),
           model: 'gemini-1.5-flash',
-          segmentCount: segments.length
+          segmentCount: segments.length,
+          duration: transcript.duration,
+          wordCount: transcript.wordCount
         }
       }
     });
 
   } catch (error) {
-    Logger.error('AI summary generation failed:', error);
+    Logger.error('AI summary generation failed:', {
+      error: error.message,
+      stack: error.stack,
+      eventId,
+      segmentCount: segments.length
+    });
+    
+    // Provide a more specific error response
+    if (error.message?.includes('Gemini model not initialized')) {
+      throw new ExternalAPIError('Gemini API', 'AI service not properly initialized');
+    }
+    
     throw error;
   }
 }));

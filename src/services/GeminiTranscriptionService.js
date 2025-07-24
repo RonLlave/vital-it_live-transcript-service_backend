@@ -133,13 +133,22 @@ class GeminiTranscriptionService {
       Logger.debug(`Parsing Gemini response...`);
       const transcription = this.parseTranscriptionResponse(result);
       
-      // Post-process segments for single participant meetings
-      if (participants && participants.length === 1) {
-        const participantName = participants[0].name || participants[0].email || 'Unknown';
-        transcription.segments = this.normalizeSingleParticipantSpeakers(
+      // Post-process segments to ensure proper speaker names
+      if (participants && participants.length > 0) {
+        Logger.info('Normalizing speaker names', {
+          participantCount: participants.length,
+          participants: participants.map(p => p.name || p.email),
+          originalSpeakers: [...new Set(transcription.segments.map(s => s.speaker))]
+        });
+        
+        transcription.segments = this.normalizeSpeakerNames(
           transcription.segments, 
-          participantName
+          participants
         );
+        
+        Logger.info('Speaker names normalized', {
+          normalizedSpeakers: [...new Set(transcription.segments.map(s => s.speaker))]
+        });
       }
       
       // Add metadata
@@ -196,17 +205,27 @@ class GeminiTranscriptionService {
    * @returns {string} Prompt
    */
   buildTranscriptionPrompt(isIncremental, previousContext, participants = []) {
-    let prompt = `Transcribe this audio with the following requirements:
-1. Auto-detect the language from these possibilities: ${this.languageHints.join(', ')}
-2. Include timestamps for each segment (relative to the audio start)
-3. Format the response as valid JSON with this structure:
+    // Get participant names
+    const participantNames = participants
+      .map(p => p.name || p.email || 'Unknown')
+      .filter(name => name !== 'Unknown');
+    
+    // Build speaker list string
+    const speakerList = participantNames.length > 0 
+      ? participantNames.join(', ')
+      : 'Unknown';
+    
+    // Use a more direct prompt similar to the user's approach
+    let prompt = `This is an audio file, and use the speakers with names of ${speakerList}.
+
+Transcribe the audio and format the response as JSON with this exact structure:
 {
   "detectedLanguage": "language code (e.g., 'en', 'de', 'es')",
   "languageConfidence": confidence score 0-1,
   "alternativeLanguages": [{"language": "code", "confidence": score}],
   "segments": [
     {
-      "speaker": "Speaker name or 'Unknown'",
+      "speaker": "Use ONLY these names: ${speakerList}",
       "text": "Transcribed text",
       "startTime": start time in seconds,
       "endTime": end time in seconds,
@@ -215,40 +234,28 @@ class GeminiTranscriptionService {
   ],
   "fullText": "Complete transcription as plain text",
   "wordCount": total word count
-}`;
+}
 
-    if (this.enableSpeakerDiarization) {
-      // Add participant information if available
-      if (participants && participants.length > 0) {
-        const participantNames = participants
-          .map(p => p.name || p.email?.split('@')[0] || 'Unknown')
-          .filter(name => name !== 'Unknown');
-        
-        if (participantNames.length === 1) {
-          // Single participant - assume all speech is from them
-          prompt += `\n4. This is a single-participant meeting with ${participantNames[0]}. Label all speech segments as "${participantNames[0]}" unless you detect clearly different voices (such as system sounds or other unexpected speakers).`;
-        } else if (participantNames.length > 1) {
-          // Multiple participants
-          prompt += `\n4. Identify different speakers based on voice characteristics.`;
-          prompt += `\n5. Meeting participants include: ${participantNames.join(', ')}. Try to match voices to these participants when possible. Use their exact names when you can identify them. Only use "Speaker 1", "Speaker 2" etc. for unidentified voices.`;
-        } else {
-          // No participant info
-          prompt += '\n4. Identify different speakers and label them as "Speaker 1", "Speaker 2", etc.';
-        }
-      } else {
-        prompt += '\n4. Identify different speakers and label them as "Speaker 1", "Speaker 2", etc.';
-      }
+CRITICAL RULES:
+1. For the "speaker" field in segments, you MUST use ONLY these names: ${speakerList}
+2. Do NOT use "Unknown", "Speaker 1", "Speaker 2", or any generic labels
+3. Auto-detect language from: ${this.languageHints.join(', ')}
+4. Include accurate timestamps for each segment`;
+
+    if (participantNames.length === 1) {
+      prompt += `\n\nSince there is only one participant (${participantNames[0]}), ALL segments must have "speaker": "${participantNames[0]}"`;
+    } else if (participantNames.length > 1) {
+      prompt += `\n\nMultiple participants detected. Match voices and use ONLY these names in the speaker field: ${speakerList}`;
     }
 
     if (isIncremental && previousContext) {
-      prompt += `\n\nThis is a continuation of a meeting. Previous context:
+      prompt += `\n\nThis is a continuation. Previous context:
 - Last speaker: ${previousContext.lastSpeaker}
-- Meeting duration so far: ${previousContext.totalDuration} seconds
-- Previous speakers detected: ${previousContext.speakers.join(', ')}
-Please maintain speaker consistency with the previous context.`;
+- Duration so far: ${previousContext.totalDuration}s
+- Speakers: ${previousContext.speakers.join(', ')}`;
     }
 
-    prompt += '\n\nIMPORTANT: Return ONLY valid JSON, no additional text or markdown.';
+    prompt += '\n\nReturn ONLY valid JSON, no markdown or extra text.';
 
     return prompt;
   }
@@ -623,28 +630,84 @@ IMPORTANT: Return ONLY valid JSON, no additional text or markdown.`;
   }
 
   /**
-   * Normalize speaker names for single participant meetings
+   * Normalize speaker names to match provided participants
    * @param {Array} segments - Transcript segments
-   * @param {string} participantName - The single participant's name
+   * @param {Array} participants - List of participants
    * @returns {Array} Normalized segments
    */
-  normalizeSingleParticipantSpeakers(segments, participantName) {
+  normalizeSpeakerNames(segments, participants) {
     if (!segments || segments.length === 0) return segments;
+    if (!participants || participants.length === 0) return segments;
     
+    // Extract participant names
+    const participantNames = participants.map(p => p.name || p.email || 'Unknown');
+    
+    // For single participant, always use their name
+    if (participants.length === 1) {
+      const participantName = participantNames[0];
+      return segments.map(segment => ({
+        ...segment,
+        speaker: participantName
+      }));
+    }
+    
+    // For multiple participants, replace generic labels
     return segments.map(segment => {
-      // Replace generic labels with the actual participant name
-      if (segment.speaker === 'Unknown' || 
-          segment.speaker === 'Speaker 1' || 
-          segment.speaker === 'Speaker' ||
-          segment.speaker?.startsWith('Speaker ')) {
+      const speaker = segment.speaker || 'Unknown';
+      
+      // Check if speaker is a generic label
+      if (speaker === 'Unknown' || 
+          speaker === 'Speaker' ||
+          speaker.match(/^Speaker \d+$/)) {
+        
+        // Try to find a participant name that's not already heavily used
+        // This is a simple heuristic - in production you'd want voice matching
+        const speakerCounts = {};
+        segments.forEach(s => {
+          speakerCounts[s.speaker] = (speakerCounts[s.speaker] || 0) + 1;
+        });
+        
+        // Find the least used participant name
+        let leastUsedName = participantNames[0];
+        let minCount = Infinity;
+        
+        participantNames.forEach(name => {
+          const count = speakerCounts[name] || 0;
+          if (count < minCount) {
+            minCount = count;
+            leastUsedName = name;
+          }
+        });
+        
         return {
           ...segment,
-          speaker: participantName
+          speaker: leastUsedName
         };
       }
       
-      // Keep the speaker name if it already matches or is specific
-      return segment;
+      // Keep the speaker name if it matches a participant
+      if (participantNames.includes(speaker)) {
+        return segment;
+      }
+      
+      // Otherwise, try fuzzy matching (e.g., partial name match)
+      const matchedName = participantNames.find(name => 
+        name.toLowerCase().includes(speaker.toLowerCase()) ||
+        speaker.toLowerCase().includes(name.toLowerCase())
+      );
+      
+      if (matchedName) {
+        return {
+          ...segment,
+          speaker: matchedName
+        };
+      }
+      
+      // Default to first participant if no match
+      return {
+        ...segment,
+        speaker: participantNames[0]
+      };
     });
   }
 }

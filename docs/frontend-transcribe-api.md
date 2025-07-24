@@ -148,13 +148,42 @@ https://live-transcript-service-backend.dev.singularity-works.com
   "success": true,
   "eventId": "google_meet_event_123",
   "aiSummary": {
-    "summary": "## Meeting Summary\n\n...",
-    "keyPoints": [...],
+    "summary": {
+      "brief": "A 2-3 sentence executive summary of the meeting",
+      "keyPoints": ["Key discussion point 1", "Key discussion point 2"],
+      "decisions": ["Decision made during the meeting"],
+      "actionItems": [
+        {
+          "task": "Action item description",
+          "assignee": "Person responsible",
+          "deadline": null
+        }
+      ],
+      "topics": ["Topic 1", "Topic 2"],
+      "sentiment": "positive",
+      "nextSteps": ["Next step 1", "Next step 2"]
+    },
+    "keyPoints": ["Key point 1", "Key point 2"],
     "actionItems": [...],
+    "decisions": ["Decision 1"],
+    "topics": ["Topic 1", "Topic 2"],
+    "sentiment": "positive",
+    "nextSteps": ["Next step 1"],
+    "insights": {
+      "participationRate": {
+        "Ron Cymond Llave": "45%",
+        "Avril Ley Ann Llave": "55%"
+      },
+      "mostDiscussedTopics": ["Testing", "Error handling"],
+      "meetingType": "discussion",
+      "effectiveness": "medium - Some technical issues discussed"
+    },
     "metadata": {
       "generatedAt": "2025-07-24T10:00:00.000Z",
       "model": "gemini-1.5-flash",
-      "segmentCount": 15
+      "segmentCount": 15,
+      "duration": 72,
+      "wordCount": 145
     }
   }
 }
