@@ -94,6 +94,7 @@ Content-Type: application/json
    - The full text is updated to reflect the new speaker names
    - Original speaker labels are preserved in an `originalSpeaker` field
    - Metadata is updated to track the configuration
+   - `is_speaker_configured` column is set to `true`
 
 3. **Validation**:
    - The endpoint warns if the number of participants doesn't match the `speakers_identified_count`
@@ -146,12 +147,20 @@ curl -X POST https://live-transcript-service-backend.dev.singularity-works.com/a
   }'
 ```
 
+## Database Updates
+
+The endpoint updates the following columns in the `meeting_bot_audio_transcript` table:
+- `raw_transcript`: Updated with new speaker names
+- `is_speaker_configured`: Set to `true` when speakers are configured
+- `updated_at`: Timestamp of the update
+
 ## Important Notes
 
 1. **Order Matters**: The order of names in the `participants` array determines which speaker they replace
 2. **Persistence**: Changes are saved to the database immediately
 3. **Reversibility**: Original speaker labels are preserved in the `originalSpeaker` field
 4. **Multiple Updates**: You can call this endpoint multiple times to update speaker names
+5. **Configuration Flag**: The `is_speaker_configured` column helps track which transcripts have been configured
 
 ## Example Scenario
 

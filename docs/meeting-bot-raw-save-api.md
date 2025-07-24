@@ -149,6 +149,7 @@ The endpoint updates the following columns in the `meeting_bot_audio_transcript`
 - `transcribed_at` (timestamp): When the transcription was completed
 - `status` (text): Set to 'completed' on success or 'failed' on error
 - `error_message` (text): Error details if transcription fails
+- `is_speaker_configured` (boolean): Remains `false` after initial transcription (set to `true` when `/api/config_speakers` is called)
 
 ## Speaker Identification
 

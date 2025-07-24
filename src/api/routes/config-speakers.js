@@ -108,6 +108,7 @@ router.post('/', asyncHandler(async (req, res) => {
       .from('meeting_bot_audio_transcript')
       .update({
         raw_transcript: updatedTranscript,
+        is_speaker_configured: true,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)

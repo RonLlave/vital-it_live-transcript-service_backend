@@ -6,9 +6,10 @@ A Node.js backend service that consumes audio streams from the Meeting Bot API, 
 
 ## Features
 
-- **Real-time Audio Processing**: Polls Meeting Bot API for active bots and fetches audio streams
+- **Frontend-Initiated Transcription**: Manual control over transcription timing (automatic mode disabled)
 - **Multi-language Transcription**: Automatic language detection with support for multiple languages
-- **Speaker Diarization**: Identifies and labels different speakers in meetings
+- **Smart Speaker Detection**: Intelligent speaker identification with configurable labeling
+- **Database Integration**: Save and update transcripts in Supabase
 - **Live Updates**: Server-Sent Events (SSE) for real-time transcript streaming
 - **Long Meeting Support**: Handles meetings up to 8-10 hours with chunked processing
 - **Export Formats**: Download transcripts as TXT, JSON, or SRT files

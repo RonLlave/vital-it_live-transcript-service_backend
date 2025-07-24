@@ -90,6 +90,17 @@ src/
 4. **Pagination Ready**: Design APIs to support future pagination
 5. **Version Ready**: Structure allows for future API versioning
 
+## Key API Endpoints
+
+### Transcription Endpoints
+- `POST /api/transcribe` - Full transcript with AI summary (uses participant names)
+- `POST /api/transcribe/raw` - Raw transcript only (uses generic speaker labels)
+- `POST /api/transcribe/summary` - AI summary only
+- `POST /api/transcribe/raw_save` - Save transcript to Supabase
+- `POST /api/config_speakers` - Update speaker names in saved transcripts
+
+All endpoints accept consistent input format with audio URL and participants.
+
 ## Testing Guidelines
 
 ### Unit Tests
@@ -224,6 +235,17 @@ To re-enable automatic mode, uncomment the disabled code in:
 
 ## Recent Updates (July 2025)
 
+### July 24, 2025 Session
+- Fixed speaker identification to properly use participant names
+- Disabled automatic transcription - service now frontend-initiated only
+- Made all transcribe endpoints accept same input format
+- Added generic speaker labels for raw transcript endpoint
+- Created `/api/transcribe/raw_save` for Meeting Bot team database integration
+- Created `/api/config_speakers` to update speaker names post-transcription
+- Added `speakers_identified_count` and `is_speaker_configured` tracking
+
+### Previous Updates
+
 ### Service Resilience
 - Added `ServiceMonitor` utility for tracking external service health
 - Service now recovers automatically when Meeting Bot API becomes unavailable
@@ -262,6 +284,7 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Updates record status and handles errors gracefully
 - Uses generic speaker labels for consistency
 - Added `/api/config_speakers` to update speaker names after transcription
+- Sets `is_speaker_configured` flag to true when speakers are configured
 
 ## Commands Reference
 

@@ -57,7 +57,13 @@ const response = await fetch('https://live-transcript-service-backend.dev.singul
 3. Call this endpoint with the ID and participant array
 4. The transcript in the database will be updated with real names
 
+### What Gets Updated
+- The `raw_transcript` column with new speaker names
+- The `is_speaker_configured` column is set to `true`
+- The `updated_at` timestamp
+
 ### Notes
 - Make sure the number of participants matches the `speakers_identified_count` for best results
 - You can call this endpoint multiple times if names need to be corrected
 - Original speaker labels are preserved in the database for reference
+- The `is_speaker_configured` flag helps you track which transcripts have been configured
