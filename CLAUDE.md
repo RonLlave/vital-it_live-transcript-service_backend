@@ -235,6 +235,12 @@ To re-enable automatic mode, uncomment the disabled code in:
 
 ## Recent Updates (July 2025)
 
+### July 25, 2025 Session
+- Fixed ffmpeg error in `/api/transcribe/raw_save` endpoint
+- Added automatic audio format detection from URL and buffer
+- Updated AudioProcessor to handle different audio formats (MP3, WAV, M4A)
+- Enhanced error handling with fallback metadata for problematic audio files
+
 ### July 24, 2025 Session
 - Fixed speaker identification to properly use participant names
 - Disabled automatic transcription - service now frontend-initiated only

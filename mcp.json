@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "supabase-mvp-dev": {
+      "command": "node",
+      "args": [
+        "/home/ronllave/devtools/selfhosted-supabase-mcp/dist/index.js",
+        "--url",
+        "https://supabasekong-os0gcs8scwgk8ogg4owg4sww.dev.singularity-works.com",
+        "--anon-key",
+        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc1MjYzNTIyMCwiZXhwIjo0OTA4MzA4ODIwLCJyb2xlIjoiYW5vbiJ9.B_I48JLgFqa3i5aeYdYWQTOd-5lS0Kj7QrDAzR4Ydz4",
+        "--service-key",
+        "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJzdXBhYmFzZSIsImlhdCI6MTc1MjYzNTIyMCwiZXhwIjo0OTA4MzA4ODIwLCJyb2xlIjoic2VydmljZV9yb2xlIn0.1Gi-TvvLmmq-DNxVcP6Gsjwr6i5uNuBmbSfJ_PoHuCQ",
+        "--db-url",
+        "postgresql://postgres:9PaCPpryXDRQJqRBzIliwAEr0YqRYGY1@178.63.26.85:5432/postgres"
+      ]
+    }
+  }
+}

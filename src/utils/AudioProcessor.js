@@ -17,7 +17,7 @@ class AudioProcessor {
    */
   async processAudioForGemini(audioBuffer, options = {}) {
     const {
-      inputFormat = 'wav',
+      inputFormat,
       outputFormat = 'wav',
       channels = 1,
       bitrate = '128k'
@@ -29,15 +29,27 @@ class AudioProcessor {
       inputStream.push(audioBuffer);
       inputStream.push(null);
 
-      ffmpeg(inputStream)
-        .inputFormat(inputFormat)
+      // Create ffmpeg command
+      const command = ffmpeg(inputStream);
+      
+      // Only specify input format if provided, otherwise let ffmpeg auto-detect
+      if (inputFormat) {
+        command.inputFormat(inputFormat);
+      }
+      
+      command
         .audioChannels(channels)
         .audioFrequency(this.sampleRate)
         .audioBitrate(bitrate)
         .outputFormat(outputFormat)
         .on('error', (err) => {
-          Logger.error('Audio processing error:', err);
-          reject(new AppError(`Failed to process audio: ${err.message}`, 500));
+          Logger.error('Audio processing error:', {
+            error: err.message,
+            inputFormat,
+            outputFormat,
+            command: err.ffmpegCommand || 'N/A'
+          });
+          reject(new AppError(`Failed to process audio: ffmpeg exited with code ${err.code || 'unknown'}: ${err.message}`, 500));
         })
         .on('end', () => {
           const processedBuffer = Buffer.concat(chunks);
@@ -68,7 +80,27 @@ class AudioProcessor {
 
       ffmpeg.ffprobe(inputStream, (err, metadata) => {
         if (err) {
-          Logger.error('Failed to extract audio metadata:', err);
+          Logger.error('Failed to extract audio metadata:', {
+            error: err.message,
+            code: err.code
+          });
+          
+          // If ffprobe fails, try to provide basic metadata
+          // This prevents complete failure when metadata extraction fails
+          if (audioBuffer && audioBuffer.length > 0) {
+            Logger.warn('Falling back to basic metadata');
+            resolve({
+              duration: 0, // Duration unknown
+              bitrate: 0,
+              sampleRate: 16000, // Default sample rate
+              channels: 1,
+              codec: 'unknown',
+              format: 'unknown',
+              size: audioBuffer.length
+            });
+            return;
+          }
+          
           reject(new AppError(`Failed to get audio metadata: ${err.message}`, 500));
           return;
         }
@@ -197,6 +229,44 @@ class AudioProcessor {
       Logger.error('Failed to check audio content:', error);
       return false;
     }
+  }
+
+  /**
+   * Detect audio format from URL or buffer
+   * @param {string} url - Audio URL (optional)
+   * @param {Buffer} audioBuffer - Audio buffer (optional)
+   * @returns {string|null} - Detected format or null
+   */
+  detectAudioFormat(url, audioBuffer) {
+    // First try to detect from URL extension
+    if (url) {
+      const match = url.match(/\.([a-zA-Z0-9]+)(\?|$)/);
+      if (match && match[1]) {
+        const format = match[1].toLowerCase();
+        Logger.debug('Detected format from URL:', { url, format });
+        return format;
+      }
+    }
+
+    // Try to detect from buffer magic numbers
+    if (audioBuffer && audioBuffer.length > 4) {
+      // MP3 magic numbers
+      if (audioBuffer[0] === 0xFF && (audioBuffer[1] & 0xE0) === 0xE0) {
+        return 'mp3';
+      }
+      // WAV magic numbers
+      if (audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49 && 
+          audioBuffer[2] === 0x46 && audioBuffer[3] === 0x46) {
+        return 'wav';
+      }
+      // M4A/AAC magic numbers
+      if (audioBuffer[4] === 0x66 && audioBuffer[5] === 0x74 && 
+          audioBuffer[6] === 0x79 && audioBuffer[7] === 0x70) {
+        return 'm4a';
+      }
+    }
+
+    return null;
   }
 }
 

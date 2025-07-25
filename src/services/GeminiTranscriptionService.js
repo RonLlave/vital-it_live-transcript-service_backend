@@ -51,7 +51,8 @@ class GeminiTranscriptionService {
       isIncremental = false,
       previousContext = null,
       participants = [],
-      useGenericSpeakers = false
+      useGenericSpeakers = false,
+      audioUrl = null
     } = options;
 
     const startTime = Date.now();
@@ -68,9 +69,19 @@ class GeminiTranscriptionService {
     });
 
     try {
+      // Detect audio format
+      const detectedFormat = AudioProcessor.detectAudioFormat(audioUrl, audioBuffer);
+      Logger.info('Audio format detection', { 
+        audioUrl, 
+        detectedFormat,
+        bufferSize: audioBuffer.length 
+      });
+      
       // Process audio for Gemini
       Logger.debug(`Processing audio for Gemini...`);
-      const processedAudio = await AudioProcessor.processAudioForGemini(audioBuffer);
+      const processedAudio = await AudioProcessor.processAudioForGemini(audioBuffer, {
+        inputFormat: detectedFormat // Pass detected format, or undefined to let ffmpeg auto-detect
+      });
       const audioBase64 = AudioProcessor.audioToBase64(processedAudio);
       
       Logger.info(`Audio processed for Gemini`, {

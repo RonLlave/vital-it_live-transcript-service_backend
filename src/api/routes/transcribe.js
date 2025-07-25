@@ -52,7 +52,8 @@ router.post('/', asyncHandler(async (req, res) => {
         botId,
         meetingUrl,
         participants,
-        isIncremental: false
+        isIncremental: false,
+        audioUrl  // Pass for format detection
       }
     );
 
@@ -144,7 +145,8 @@ router.post('/raw', asyncHandler(async (req, res) => {
         meetingUrl,
         participants,
         isIncremental: false,
-        useGenericSpeakers: true  // Use Speaker 1, Speaker 2, etc.
+        useGenericSpeakers: true,  // Use Speaker 1, Speaker 2, etc.
+        audioUrl  // Pass for format detection
       }
     );
 
@@ -227,7 +229,8 @@ router.post('/summary', asyncHandler(async (req, res) => {
         botId,
         meetingUrl,
         participants,
-        isIncremental: false
+        isIncremental: false,
+        audioUrl  // Pass for format detection
       }
     );
 
@@ -346,7 +349,8 @@ router.post('/raw_save', asyncHandler(async (req, res) => {
       {
         botId: `supabase_${id}`,
         isIncremental: false,
-        useGenericSpeakers: true  // Use Speaker 1, Speaker 2, etc.
+        useGenericSpeakers: true,  // Use Speaker 1, Speaker 2, etc.
+        audioUrl: publicUrl  // Pass the URL for format detection
       }
     );
 
