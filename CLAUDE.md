@@ -297,6 +297,8 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Uses generic speaker labels for consistency
 - Added `/api/config_speakers` to update speaker names after transcription
 - Sets `is_speaker_configured` flag to true when speakers are configured
+- Enhanced `/api/config_speakers` to generate AI summary with updated speaker names
+- Stores AI summary in `transcript_ai_summary` column
 
 ## Commands Reference
 

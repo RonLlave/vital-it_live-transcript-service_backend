@@ -1,7 +1,7 @@
 # Configure Speakers API Documentation
 
 ## Overview
-This endpoint allows the frontend to replace generic speaker labels (Speaker 1, Speaker 2, etc.) with actual participant names in the raw transcript stored in Supabase.
+This endpoint allows the frontend to replace generic speaker labels (Speaker 1, Speaker 2, etc.) with actual participant names in the raw transcript stored in Supabase. It also generates an AI summary using the updated transcript with real speaker names.
 
 ## Endpoint Details
 
@@ -10,7 +10,7 @@ This endpoint allows the frontend to replace generic speaker labels (Speaker 1, 
 
 **Base URL:** `https://live-transcript-service-backend.dev.singularity-works.com`
 
-**Description:** Updates the raw transcript in the database by replacing generic speaker labels with the provided participant names.
+**Description:** Updates the raw transcript in the database by replacing generic speaker labels with the provided participant names and generates an AI summary with the updated speaker information.
 
 ### Request
 
@@ -42,7 +42,7 @@ Content-Type: application/json
 {
   "success": true,
   "id": "780bb9d9-3334-422d-81f1-145a8f68c3b3",
-  "message": "Speaker names configured successfully",
+  "message": "Speaker names configured and AI summary generated successfully",
   "result": {
     "updatedSegments": 45,
     "totalSegments": 45,
@@ -50,6 +50,27 @@ Content-Type: application/json
       "Speaker 1": "Ron Llave",
       "Speaker 2": "Matthias Umpierrezz",
       "Speaker 3": "Emil Santos"
+    },
+    "aiSummaryGenerated": true,
+    "summary": {
+      "brief": "The team discussed the Q4 product roadmap and agreed on three key initiatives for implementation.",
+      "keyPoints": [
+        "Feature X will be prioritized for December release",
+        "Budget allocation needs review by finance team",
+        "Customer feedback integration process established"
+      ],
+      "actionItems": [
+        {
+          "task": "Prepare detailed project timeline for Feature X",
+          "assignee": "Ron Llave",
+          "deadline": "2025-08-01"
+        },
+        {
+          "task": "Schedule budget review meeting",
+          "assignee": "Matthias Umpierrezz",
+          "deadline": null
+        }
+      ]
     }
   }
 }
@@ -95,6 +116,8 @@ Content-Type: application/json
    - Original speaker labels are preserved in an `originalSpeaker` field
    - Metadata is updated to track the configuration
    - `is_speaker_configured` column is set to `true`
+   - AI summary is generated with the updated speaker names
+   - `transcript_ai_summary` column is populated with the generated summary
 
 3. **Validation**:
    - The endpoint warns if the number of participants doesn't match the `speakers_identified_count`
@@ -152,6 +175,7 @@ curl -X POST https://live-transcript-service-backend.dev.singularity-works.com/a
 The endpoint updates the following columns in the `meeting_bot_audio_transcript` table:
 - `raw_transcript`: Updated with new speaker names
 - `is_speaker_configured`: Set to `true` when speakers are configured
+- `transcript_ai_summary`: Populated with AI-generated meeting summary (JSONB format)
 
 ## Important Notes
 
@@ -160,6 +184,9 @@ The endpoint updates the following columns in the `meeting_bot_audio_transcript`
 3. **Reversibility**: Original speaker labels are preserved in the `originalSpeaker` field
 4. **Multiple Updates**: You can call this endpoint multiple times to update speaker names
 5. **Configuration Flag**: The `is_speaker_configured` column helps track which transcripts have been configured
+6. **AI Summary**: Summary generation uses Google Gemini API and may add 5-10 seconds to response time
+7. **Graceful Failure**: If AI summary fails, speaker configuration still succeeds (check `aiSummaryGenerated` flag)
+8. **Summary Structure**: The AI summary includes brief overview, key points, action items, topics, and insights
 
 ## Example Scenario
 
@@ -177,4 +204,44 @@ Ron Llave: "Hello everyone"
 Matthias Umpierrezz: "Good morning"
 Emil Santos: "Let's begin"
 Ron Llave: "Today's agenda..."
+```
+
+## AI Summary Structure
+
+The `transcript_ai_summary` column contains a JSONB object with the following structure:
+
+```json
+{
+  "summary": {
+    "brief": "2-3 sentence executive summary",
+    "keyPoints": ["Main discussion points"],
+    "decisions": ["Decisions made"],
+    "actionItems": [
+      {
+        "task": "Task description",
+        "assignee": "Person responsible",
+        "deadline": "ISO date or null"
+      }
+    ],
+    "topics": ["Main topics discussed"],
+    "sentiment": "positive/neutral/negative",
+    "nextSteps": ["Planned next steps"]
+  },
+  "insights": {
+    "participationRate": {
+      "Ron Llave": "45%",
+      "Matthias Umpierrezz": "30%",
+      "Emil Santos": "25%"
+    },
+    "mostDiscussedTopics": ["Topic 1", "Topic 2", "Topic 3"],
+    "meetingType": "standup/planning/review/discussion/other",
+    "effectiveness": "high/medium/low with brief reason"
+  },
+  "metadata": {
+    "generatedAt": "2025-07-25T10:30:00Z",
+    "processingTime": 5234,
+    "transcriptSegments": 45,
+    "meetingDuration": 1800
+  }
+}
 ```

@@ -22,3 +22,4 @@ coverage/
 .cache/
 temp/
 tmp/
+mcp.json

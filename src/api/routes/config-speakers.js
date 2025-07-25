@@ -3,6 +3,7 @@ const router = express.Router();
 const { asyncHandler, ValidationError, ExternalAPIError } = require('../../utils/ErrorHandler');
 const Logger = require('../../utils/Logger');
 const SupabaseClient = require('../../utils/SupabaseClient');
+const GeminiTranscriptionService = require('../../services/GeminiTranscriptionService');
 
 /**
  * Configure speaker names in raw transcript
@@ -102,13 +103,49 @@ router.post('/', asyncHandler(async (req, res) => {
       }
     };
 
-    // Update the database
+    // Generate AI summary with updated speaker names
+    let aiSummary = null;
+    try {
+      Logger.info('Generating AI summary with updated speaker names');
+      
+      const summary = await GeminiTranscriptionService.generateSummary(
+        {
+          segments: updatedSegments,
+          fullText: updatedFullText,
+          wordCount: updatedTranscript.wordCount || 0,
+          duration: updatedTranscript.duration || 0,
+          detectedLanguage: updatedTranscript.detectedLanguage || 'unknown'
+        },
+        {
+          participants: participants
+        }
+      );
+      
+      aiSummary = summary;
+      Logger.info('AI summary generated successfully');
+      
+    } catch (error) {
+      Logger.error('Failed to generate AI summary:', {
+        error: error.message,
+        stack: error.stack
+      });
+      // Continue without summary - we'll still update speakers
+    }
+
+    // Update the database with transcript and summary
+    const updateData = {
+      raw_transcript: updatedTranscript,
+      is_speaker_configured: true
+    };
+    
+    // Add AI summary if generated successfully
+    if (aiSummary) {
+      updateData.transcript_ai_summary = aiSummary;
+    }
+    
     const { data, error: updateError } = await supabase
       .from('meeting_bot_audio_transcript')
-      .update({
-        raw_transcript: updatedTranscript,
-        is_speaker_configured: true
-      })
+      .update(updateData)
       .eq('id', id)
       .select();
 
@@ -131,16 +168,29 @@ router.post('/', asyncHandler(async (req, res) => {
       totalSegments: updatedSegments.length
     });
 
-    res.json({
+    const response = {
       success: true,
       id,
       message: 'Speaker names configured successfully',
       result: {
         updatedSegments: updatedCount,
         totalSegments: updatedSegments.length,
-        speakerMapping
+        speakerMapping,
+        aiSummaryGenerated: !!aiSummary
       }
-    });
+    };
+    
+    // Include summary in response if generated
+    if (aiSummary) {
+      response.result.summary = {
+        brief: aiSummary.summary?.brief || '',
+        keyPoints: aiSummary.summary?.keyPoints || [],
+        actionItems: aiSummary.summary?.actionItems || []
+      };
+      response.message = 'Speaker names configured and AI summary generated successfully';
+    }
+    
+    res.json(response);
 
   } catch (error) {
     Logger.error('Configure speakers failed:', {
