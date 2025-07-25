@@ -370,7 +370,6 @@ router.post('/raw_save', asyncHandler(async (req, res) => {
       detectedLanguage: transcription.detectedLanguage || 'unknown',
       languageConfidence: transcription.languageConfidence || 0,
       metadata: {
-        transcribedAt: new Date().toISOString(),
         audioUrl: publicUrl,
         model: 'gemini-1.5-flash'
       }
@@ -390,9 +389,7 @@ router.post('/raw_save', asyncHandler(async (req, res) => {
       .from('meeting_bot_audio_transcript')
       .update({
         raw_transcript: rawTranscript,
-        speakers_identified_count: speakersIdentifiedCount,
-        transcribed_at: new Date().toISOString(),
-        status: 'completed'
+        speakers_identified_count: speakersIdentifiedCount
       })
       .eq('id', id)
       .select();
@@ -438,20 +435,8 @@ router.post('/raw_save', asyncHandler(async (req, res) => {
       publicUrl
     });
     
-    // Update status to failed in Supabase
-    try {
-      const supabase = SupabaseClient.getClient();
-      await supabase
-        .from('meeting_bot_audio_transcript')
-        .update({
-          status: 'failed',
-          error_message: error.message,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
-    } catch (updateError) {
-      Logger.error('Failed to update error status:', updateError);
-    }
+    // Log error but don't update database (no error columns available)
+    Logger.error('Transcription failed - no error columns to update in database');
     
     throw error;
   }

@@ -152,7 +152,6 @@ curl -X POST https://live-transcript-service-backend.dev.singularity-works.com/a
 The endpoint updates the following columns in the `meeting_bot_audio_transcript` table:
 - `raw_transcript`: Updated with new speaker names
 - `is_speaker_configured`: Set to `true` when speakers are configured
-- `updated_at`: Timestamp of the update
 
 ## Important Notes
 

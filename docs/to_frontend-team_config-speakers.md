@@ -60,7 +60,6 @@ const response = await fetch('https://live-transcript-service-backend.dev.singul
 ### What Gets Updated
 - The `raw_transcript` column with new speaker names
 - The `is_speaker_configured` column is set to `true`
-- The `updated_at` timestamp
 
 ### Notes
 - Make sure the number of participants matches the `speakers_identified_count` for best results

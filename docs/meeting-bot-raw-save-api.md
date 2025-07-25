@@ -144,12 +144,8 @@ The endpoint updates the following columns in the `meeting_bot_audio_transcript`
   - `wordCount`: Total word count
   - `duration`: Audio duration in seconds
   - `detectedLanguage`: Detected language code
-  - `metadata`: Additional metadata
+  - `metadata`: Additional metadata (audioUrl, model)
 - `speakers_identified_count` (integer): Number of unique speakers identified in the audio
-- `transcribed_at` (timestamp): When the transcription was completed
-- `status` (text): Set to 'completed' on success or 'failed' on error
-- `error_message` (text): Error details if transcription fails
-- `is_speaker_configured` (boolean): Remains `false` after initial transcription (set to `true` when `/api/config_speakers` is called)
 
 ## Speaker Identification
 
@@ -165,7 +161,8 @@ The Google Gemini API intelligently identifies different speakers based on voice
 1. **Audio File Requirements:**
    - Must be publicly accessible via the provided URL
    - Maximum file size: 500MB
-   - Supported formats: MP3, WAV, M4A, and other common audio formats
+   - Expected format: MP3 (from Supabase storage)
+   - The service automatically detects and handles MP3 format
 
 2. **Processing Time:**
    - Transcription time depends on audio duration
@@ -173,9 +170,8 @@ The Google Gemini API intelligently identifies different speakers based on voice
    - Request timeout: 5 minutes
 
 3. **Error Handling:**
-   - If transcription fails, the record's `status` is updated to 'failed'
-   - Error details are stored in the `error_message` column
-   - The API returns appropriate error responses for debugging
+   - If transcription fails, the API returns appropriate error responses
+   - Error details are logged but not stored in database (no error columns)
 
 4. **Idempotency:**
    - Multiple calls with the same ID will overwrite previous transcripts

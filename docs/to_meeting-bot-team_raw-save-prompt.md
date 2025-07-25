@@ -39,7 +39,6 @@ const result = await response.json();
 2. Transcribes it using Google Gemini API
 3. Saves the transcript to the `raw_transcript` column in your `meeting_bot_audio_transcript` table
 4. Saves the number of unique speakers to the `speakers_identified_count` column
-5. Updates the record status to 'completed' or 'failed'
 
 ### Speaker Format
 - Uses "Speaker 1", "Speaker 2", etc. (not participant names)
@@ -66,6 +65,6 @@ Success:
 - Make sure the audio URL is publicly accessible
 - The process typically takes 10-30 seconds per minute of audio
 - Maximum audio file size: 500MB
-- On error, check the `error_message` column in your table for details
+- Errors are returned in the API response (not stored in database)
 
 That's it! The transcript will be saved directly to your Supabase table.

@@ -98,7 +98,6 @@ router.post('/', asyncHandler(async (req, res) => {
       metadata: {
         ...rawTranscript.metadata,
         speakersConfigured: true,
-        speakersConfiguredAt: new Date().toISOString(),
         participantNames: participants
       }
     };
@@ -108,8 +107,7 @@ router.post('/', asyncHandler(async (req, res) => {
       .from('meeting_bot_audio_transcript')
       .update({
         raw_transcript: updatedTranscript,
-        is_speaker_configured: true,
-        updated_at: new Date().toISOString()
+        is_speaker_configured: true
       })
       .eq('id', id)
       .select();

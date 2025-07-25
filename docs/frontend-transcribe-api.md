@@ -106,6 +106,8 @@ The endpoints handle speaker identification differently:
 
 **Description:** Returns only the raw transcript without AI summary (faster response). Uses generic speaker labels (Speaker 1, Speaker 2, etc.) with intelligent speaker detection.
 
+**Audio Format:** Expects WAV format from Meeting Bot API audioblob URLs.
+
 **Request Body:**
 ```json
 {

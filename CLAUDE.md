@@ -240,6 +240,7 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Added automatic audio format detection from URL and buffer
 - Updated AudioProcessor to handle different audio formats (MP3, WAV, M4A)
 - Enhanced error handling with fallback metadata for problematic audio files
+- Removed all non-existent column updates - only updating `raw_transcript` and `speakers_identified_count`
 
 ### July 24, 2025 Session
 - Fixed speaker identification to properly use participant names
@@ -283,6 +284,11 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Gemini intelligently detects number of speakers and maintains consistency
 - `/api/transcribe` and `/api/transcribe/summary` use participant names
 - Raw endpoint ignores participant list for speaker naming
+
+### Audio Format Handling
+- `/api/transcribe/raw` - Expects WAV format from audioblob URLs
+- `/api/transcribe/raw_save` - Handles MP3 format from Supabase storage public URLs
+- Format detection automatically identifies file type from URL or buffer
 
 ### Database Integration
 - Added `/api/transcribe/raw_save` endpoint for Meeting Bot team
