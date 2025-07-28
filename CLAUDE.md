@@ -241,6 +241,8 @@ To re-enable automatic mode, uncomment the disabled code in:
 - Updated AudioProcessor to handle different audio formats (MP3, WAV, M4A)
 - Enhanced error handling with fallback metadata for problematic audio files
 - Removed all non-existent column updates - only updating `raw_transcript` and `speakers_identified_count`
+- Enhanced `/api/config_speakers` to generate AI summary after updating speaker names
+- AI summary stored in `transcript_ai_summary` column with comprehensive meeting insights
 
 ### July 24, 2025 Session
 - Fixed speaker identification to properly use participant names

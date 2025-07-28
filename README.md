@@ -4,6 +4,14 @@ A Node.js backend service that consumes audio streams from the Meeting Bot API, 
 
 **Note: Automatic transcription is currently disabled. The service operates in frontend-initiated mode only, where transcription requests are made via POST endpoints.**
 
+## Recent Updates (July 25, 2025)
+
+- **Fixed Audio Processing**: Added automatic audio format detection for MP3/WAV/M4A files
+- **Database Schema Fix**: Now only updates existing columns (`raw_transcript`, `speakers_identified_count`)
+- **Enhanced Config Speakers**: `/api/config_speakers` now generates AI summary with updated speaker names
+- **AI Summary Storage**: Stores comprehensive meeting summary in `transcript_ai_summary` column
+- **Improved Error Handling**: Better fallback handling for audio processing failures
+
 ## Features
 
 - **Frontend-Initiated Transcription**: Manual control over transcription timing (automatic mode disabled)
@@ -217,8 +225,8 @@ These endpoints allow frontend to directly request transcriptions with consisten
 - `POST /api/transcribe` - Transcribe audio and get both raw transcript and AI summary (uses participant names)
 - `POST /api/transcribe/raw` - Get only raw transcript with generic speaker labels (Speaker 1, Speaker 2, etc.)
 - `POST /api/transcribe/summary` - Get only AI summary (uses participant names internally)
-- `POST /api/transcribe/raw_save` - Transcribe and save to Supabase database (for Meeting Bot team)
-- `POST /api/config_speakers` - Replace generic speaker labels with participant names in saved transcripts
+- `POST /api/transcribe/raw_save` - Transcribe and save to Supabase database (for Meeting Bot team) - supports MP3 format
+- `POST /api/config_speakers` - Replace generic speaker labels with participant names and generate AI summary
 
 All transcribe endpoints accept the same request format with audio URL and participants list.
 
